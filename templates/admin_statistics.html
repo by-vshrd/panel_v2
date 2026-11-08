@@ -12,44 +12,41 @@
     <button class="btn btn-outline range-btn" data-range="7d">Неделя</button>
 </div>
 
-<div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-    <div class="card server-card" style="padding: 1.5rem;">
+<!-- Сетка в 1 колонку -->
+<div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
+
+    <!-- СЕРВЕР 1 -->
+    <div class="card" style="padding: 1.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3 style="margin:0;">Сервер 1</h3>
             <span id="s1-status" class="badge offline" style="background: var(--border); color: var(--muted); padding: 0.3rem 0.8rem; border-radius: 4px;">Загрузка...</span>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
-            <div>CPU: <strong id="s1-cpu" style="color: var(--accent);">0%</strong></div>
-            <div>RAM: <strong id="s1-ram" style="color: #d29922;">0%</strong></div>
+        <div style="display: flex; gap: 2rem; font-size: 0.95rem; margin-bottom: 1rem;">
             <div>Онлайн: <strong id="s1-onlines" style="color: var(--success);">0</strong></div>
             <div>Uptime: <strong id="s1-uptime" style="color: var(--text);">0д 0ч</strong></div>
+            <div id="s1-error" style="color: var(--danger); font-size: 0.9rem;"></div>
         </div>
-        <div id="s1-error" style="color: var(--danger); font-size: 0.8rem; margin-top: 0.5rem;"></div>
+        <div style="position: relative; height: 250px; width: 100%;">
+            <canvas id="chartNet1"></canvas>
+        </div>
     </div>
 
-    <div class="card server-card" style="padding: 1.5rem;">
+    <!-- СЕРВЕР 2 -->
+    <div class="card" style="padding: 1.5rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h3 style="margin:0;">Сервер 2</h3>
             <span id="s2-status" class="badge offline" style="background: var(--border); color: var(--muted); padding: 0.3rem 0.8rem; border-radius: 4px;">Загрузка...</span>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
-            <div>CPU: <strong id="s2-cpu" style="color: var(--accent);">0%</strong></div>
-            <div>RAM: <strong id="s2-ram" style="color: #d29922;">0%</strong></div>
+        <div style="display: flex; gap: 2rem; font-size: 0.95rem; margin-bottom: 1rem;">
             <div>Онлайн: <strong id="s2-onlines" style="color: var(--success);">0</strong></div>
             <div>Uptime: <strong id="s2-uptime" style="color: var(--text);">0д 0ч</strong></div>
+            <div id="s2-error" style="color: var(--danger); font-size: 0.9rem;"></div>
         </div>
-        <div id="s2-error" style="color: var(--danger); font-size: 0.8rem; margin-top: 0.5rem;"></div>
+        <div style="position: relative; height: 250px; width: 100%;">
+            <canvas id="chartNet2"></canvas>
+        </div>
     </div>
-</div>
 
-<!-- Графики -->
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-    <div class="card" style="padding: 1rem; height: 300px; position: relative;">
-        <canvas id="chartNetwork"></canvas>
-    </div>
-    <div class="card" style="padding: 1rem; height: 300px; position: relative;">
-        <canvas id="chartSystem"></canvas>
-    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -65,41 +62,55 @@ function createGradient(ctx, colorStart, colorEnd) {
     return gradient;
 }
 
-const ctxNet = document.getElementById('chartNetwork').getContext('2d');
-const chartNetwork = new Chart(ctxNet, {
+const commonOptions = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+        x: { grid: { display: false } },
+        y: {
+            beginAtZero: true,
+            grid: { color: '#30363d' },
+            // Делаем ось Y понятной (КБ/с)
+            ticks: {
+                callback: function(value) {
+                    if (value >= 1024) return (value/1024).toFixed(1) + ' МБ/с';
+                    return value.toFixed(0) + ' КБ/с';
+                }
+            }
+        }
+    }
+};
+
+// Инициализация графика Сервера 1
+const ctx1 = document.getElementById('chartNet1').getContext('2d');
+const chartNet1 = new Chart(ctx1, {
     type: 'line',
     data: {
         labels: [],
         datasets: [
-            { label: 'Upload', data: [], borderColor: '#58a6ff', backgroundColor: createGradient(ctxNet, 'rgba(88,166,255,0.3)', 'rgba(88,166,255,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
-            { label: 'Download', data: [], borderColor: '#3fb950', backgroundColor: createGradient(ctxNet, 'rgba(63,185,80,0.3)', 'rgba(63,185,80,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+            { label: 'Upload', data: [], borderColor: '#58a6ff', backgroundColor: createGradient(ctx1, 'rgba(88,166,255,0.3)', 'rgba(88,166,255,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+            { label: 'Download', data: [], borderColor: '#3fb950', backgroundColor: createGradient(ctx1, 'rgba(63,185,80,0.3)', 'rgba(63,185,80,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
         ]
     },
-    options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { title: { display: true, text: 'Сетевой трафик (Сервер 1)', color: '#f0f6fc' }, legend: { position: 'top' } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#30363d' } } }
-    }
+    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Сетевой трафик (Сервер 1)', color: '#f0f6fc' } } }
 });
 
-const ctxSys = document.getElementById('chartSystem').getContext('2d');
-const chartSystem = new Chart(ctxSys, {
+// Инициализация графика Сервера 2
+const ctx2 = document.getElementById('chartNet2').getContext('2d');
+const chartNet2 = new Chart(ctx2, {
     type: 'line',
     data: {
         labels: [],
         datasets: [
-            { label: 'CPU S1', data: [], borderColor: '#d29922', backgroundColor: createGradient(ctxSys, 'rgba(210,153,34,0.3)', 'rgba(210,153,34,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
-            { label: 'RAM S1', data: [], borderColor: '#f85149', backgroundColor: createGradient(ctxSys, 'rgba(248,81,73,0.3)', 'rgba(248,81,73,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+            { label: 'Upload', data: [], borderColor: '#58a6ff', backgroundColor: createGradient(ctx2, 'rgba(88,166,255,0.3)', 'rgba(88,166,255,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+            { label: 'Download', data: [], borderColor: '#3fb950', backgroundColor: createGradient(ctx2, 'rgba(63,185,80,0.3)', 'rgba(63,185,80,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
         ]
     },
-    options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { title: { display: true, text: 'Системные ресурсы (Сервер 1)', color: '#f0f6fc' }, legend: { position: 'top' } },
-        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, max: 100, grid: { color: '#30363d' } } }
-    }
+    options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Сетевой трафик (Сервер 2)', color: '#f0f6fc' } } }
 });
 
-let lastNet = { up: 0, down: 0 };
+
+let lastNet = { s1: {up: 0, down: 0}, s2: {up: 0, down: 0} };
 let currentRange = 'live';
 let intervalId = null;
 
@@ -108,7 +119,6 @@ document.querySelectorAll('.range-btn').forEach(btn => {
         document.querySelectorAll('.range-btn').forEach(b => { b.classList.remove('active', 'btn'); b.classList.add('btn-outline'); });
         this.classList.remove('btn-outline');
         this.classList.add('active', 'btn');
-
         currentRange = this.dataset.range;
         fetchData();
     });
@@ -117,48 +127,35 @@ document.querySelectorAll('.range-btn').forEach(btn => {
 async function fetchData() {
     try {
         const resp = await fetch(`/accounts/api/stats/?range=${currentRange}`);
-
-        // Если сервер вернул ошибку (например 500), мы получим HTML, и .json() упадёт
-        if (!resp.ok) {
-            throw new Error(`HTTP error! status: ${resp.status}`);
-        }
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
+
+        const timeLabel = new Date().toLocaleTimeString('ru-RU', {hour12:false});
 
         if (currentRange === 'live') {
             // === СЕРВЕР 1 ===
             if (data.server1 && data.server1.online) {
                 document.getElementById('s1-status').textContent = 'ONLINE';
                 document.getElementById('s1-status').style.cssText = 'background: rgba(63,185,80,0.2); color: var(--success); padding: 0.3rem 0.8rem; border-radius: 4px; font-weight:bold;';
-                document.getElementById('s1-cpu').textContent = data.server1.cpu + '%';
-                document.getElementById('s1-ram').textContent = data.server1.mem_percent + '%';
                 document.getElementById('s1-onlines').textContent = data.server1.onlines;
                 document.getElementById('s1-uptime').textContent = data.server1.uptime;
                 document.getElementById('s1-error').textContent = '';
 
-                if (lastNet.up > 0) {
-                    let speedUp = Math.max(0, (data.server1.net_up - lastNet.up) / 1024 / 10);
-                    let speedDown = Math.max(0, (data.server1.net_down - lastNet.down) / 1024 / 10);
-                    const time = new Date().toLocaleTimeString('ru-RU', {hour12:false});
+                // Если есть предыдущие данные, считаем скорость
+                if (lastNet.s1.up > 0) {
+                    let speedUp = Math.max(0, (data.server1.net_up - lastNet.s1.up) / 1024 / 10);
+                    let speedDown = Math.max(0, (data.server1.net_down - lastNet.s1.down) / 1024 / 10);
 
-                    chartNetwork.data.labels.push(time);
-                    chartNetwork.data.datasets[0].data.push(speedUp);
-                    chartNetwork.data.datasets[1].data.push(speedDown);
-                    if (chartNetwork.data.labels.length > 20) {
-                        chartNetwork.data.labels.shift();
-                        chartNetwork.data.datasets.forEach(ds => ds.data.shift());
+                    chartNet1.data.labels.push(timeLabel);
+                    chartNet1.data.datasets[0].data.push(speedUp);
+                    chartNet1.data.datasets[1].data.push(speedDown);
+                    if (chartNet1.data.labels.length > 20) {
+                        chartNet1.data.labels.shift();
+                        chartNet1.data.datasets.forEach(ds => ds.data.shift());
                     }
-                    chartNetwork.update('none');
-
-                    chartSystem.data.labels.push(time);
-                    chartSystem.data.datasets[0].data.push(data.server1.cpu);
-                    chartSystem.data.datasets[1].data.push(data.server1.mem_percent);
-                    if (chartSystem.data.labels.length > 20) {
-                        chartSystem.data.labels.shift();
-                        chartSystem.data.datasets.forEach(ds => ds.data.shift());
-                    }
-                    chartSystem.update('none');
+                    chartNet1.update('none');
                 }
-                lastNet = { up: data.server1.net_up, down: data.server1.net_down };
+                lastNet.s1 = { up: data.server1.net_up, down: data.server1.net_down };
             } else {
                 document.getElementById('s1-status').textContent = 'OFFLINE';
                 document.getElementById('s1-status').style.cssText = 'background: rgba(248,81,73,0.2); color: var(--danger); padding: 0.3rem 0.8rem; border-radius: 4px; font-weight:bold;';
@@ -169,11 +166,24 @@ async function fetchData() {
             if (data.server2 && data.server2.online) {
                 document.getElementById('s2-status').textContent = 'ONLINE';
                 document.getElementById('s2-status').style.cssText = 'background: rgba(63,185,80,0.2); color: var(--success); padding: 0.3rem 0.8rem; border-radius: 4px; font-weight:bold;';
-                document.getElementById('s2-cpu').textContent = data.server2.cpu + '%';
-                document.getElementById('s2-ram').textContent = data.server2.mem_percent + '%';
                 document.getElementById('s2-onlines').textContent = data.server2.onlines;
                 document.getElementById('s2-uptime').textContent = data.server2.uptime;
                 document.getElementById('s2-error').textContent = '';
+
+                if (lastNet.s2.up > 0) {
+                    let speedUp = Math.max(0, (data.server2.net_up - lastNet.s2.up) / 1024 / 10);
+                    let speedDown = Math.max(0, (data.server2.net_down - lastNet.s2.down) / 1024 / 10);
+
+                    chartNet2.data.labels.push(timeLabel);
+                    chartNet2.data.datasets[0].data.push(speedUp);
+                    chartNet2.data.datasets[1].data.push(speedDown);
+                    if (chartNet2.data.labels.length > 20) {
+                        chartNet2.data.labels.shift();
+                        chartNet2.data.datasets.forEach(ds => ds.data.shift());
+                    }
+                    chartNet2.update('none');
+                }
+                lastNet.s2 = { up: data.server2.net_up, down: data.server2.net_down };
             } else {
                 document.getElementById('s2-status').textContent = 'OFFLINE';
                 document.getElementById('s2-status').style.cssText = 'background: rgba(248,81,73,0.2); color: var(--danger); padding: 0.3rem 0.8rem; border-radius: 4px; font-weight:bold;';
@@ -182,22 +192,19 @@ async function fetchData() {
         } else {
             // === РЕЖИМ ИСТОРИИ ===
             const s1Data = data.server1 || [];
-            chartNetwork.data.labels = s1Data.map(d => d.time);
-            chartNetwork.data.datasets[0].data = s1Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.up - s1Data[i-1].up) / 1024 / 60));
-            chartNetwork.data.datasets[1].data = s1Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.down - s1Data[i-1].down) / 1024 / 60));
-            chartNetwork.update();
+            chartNet1.data.labels = s1Data.map(d => d.time);
+            chartNet1.data.datasets[0].data = s1Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.up - s1Data[i-1].up) / 1024 / 60));
+            chartNet1.data.datasets[1].data = s1Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.down - s1Data[i-1].down) / 1024 / 60));
+            chartNet1.update();
 
-            chartSystem.data.labels = s1Data.map(d => d.time);
-            chartSystem.data.datasets[0].data = s1Data.map(d => d.cpu);
-            chartSystem.data.datasets[1].data = s1Data.map(d => d.mem);
-            chartSystem.update();
+            const s2Data = data.server2 || [];
+            chartNet2.data.labels = s2Data.map(d => d.time);
+            chartNet2.data.datasets[0].data = s2Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.up - s2Data[i-1].up) / 1024 / 60));
+            chartNet2.data.datasets[1].data = s2Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.down - s2Data[i-1].down) / 1024 / 60));
+            chartNet2.update();
         }
     } catch (e) {
-        console.error("Ошибка загрузки статистики:", e);
-        // Отображаем ошибку в интерфейсе, чтобы не было вечного "Ожидания"
-        document.getElementById('s1-status').textContent = 'ОШИБКА';
-        document.getElementById('s1-status').style.cssText = 'background: rgba(248,81,73,0.2); color: var(--danger); padding: 0.3rem 0.8rem; border-radius: 4px;';
-        document.getElementById('s1-error').textContent = 'Сервер не отвечает: ' + e.message;
+        console.error("Ошибка загрузки:", e);
     }
 }
 
