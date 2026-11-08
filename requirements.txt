@@ -1,0 +1,9 @@
+Django>=5.0
+requests
+qrcode
+pillow
+whitenoise
+urllib3
+dj-database-url
+gunicorn
+psycopg2-binary

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<h2 style="color: var(--heading); margin-bottom: 1rem;">Настройки по умолчанию</h2>
+<div class="card">
+    <form method="post">
+        {% csrf_token %}
+        <label>Длительность новой подписки (дней):</label>
+        <input type="number" name="default_days" value="{{ settings.default_days }}" min="1">
+
+        <label>Лимит трафика по умолчанию (ГБ, 0 = безлимит):</label>
+        <input type="number" name="default_traffic_gb" value="{{ settings.default_traffic_gb }}" min="0">
+
+        <label>Текст в футере:</label>
+        <input type="text" name="footer_text" value="{{ settings.footer_text }}" maxlength="200">
+
+        <button type="submit" class="btn" style="margin-top: 1rem;">Сохранить</button>
+    </form>
+</div>
+{% endblock %}

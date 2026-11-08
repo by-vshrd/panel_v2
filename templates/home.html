@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}VPN Панель — Главная{% endblock %}
+{% block content %}
+<div class="card" style="text-align: center;">
+    <h2>Безопасный доступ в интернет</h2>
+    <p style="color: var(--muted); margin-bottom: 1.5rem;">Два сервера на выбор. Один аккаунт. Быстрый старт по QR-коду.</p>
+    <a href="{% url 'signup' %}" class="btn">Создать аккаунт</a>
+</div>
+{% endblock %}

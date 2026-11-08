@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Регистрация{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>Регистрация</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn" style="width:100%; margin-top:1rem;">Зарегистрироваться</button>
+    </form>
+    <p style="text-align: center; margin-top: 1rem; color: var(--muted);">
+        Уже есть аккаунт? <a href="{% url 'login' %}" style="color: var(--accent);">Войти</a>
+    </p>
+</div>
+<script>
+document.querySelectorAll('input[type="password"]').forEach(input => {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;';
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    const icon = document.createElement('span');
+    icon.textContent = '👁️';
+    icon.style.cssText = 'position:absolute; right:10px; top:10px; cursor:pointer; user-select:none;';
+    icon.onclick = () => {
+        if (input.type === 'password') { input.type = 'text'; icon.textContent = '🙈'; }
+        else { input.type = 'password'; icon.textContent = '👁️'; }
+    };
+    wrapper.appendChild(icon);
+});
+</script>
+{% endblock %}

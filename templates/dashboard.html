@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Личный кабинет{% endblock %}
+{% block content %}
+<h2 style="color: var(--heading); margin-bottom: 1rem;">Личный кабинет</h2>
+
+{% for key, data in servers.items %}
+<div class="card">
+    <h3>{{ data.name }}</h3>
+    {% if data.profiles %}
+        {% for profile in data.profiles %}
+        <div style="border-top: 1px solid var(--border); padding-top: 0.8rem; margin-top: 0.8rem;">
+            <strong>{{ profile.get_protocol_display }}</strong>
+            —
+            {% if profile.is_active %}
+                <span style="color: var(--success);">активен</span>
+                ({{ profile.days_left }} дн., до {{ profile.subscription_expiry|date:"d.m.Y" }})
+            {% else %}
+                <span style="color: var(--danger);">истёк</span>
+            {% endif %}
+            <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <a href="{% url 'qr_code' profile.id %}" target="_blank" class="btn btn-outline">📱 QR</a>
+                <button class="btn btn-outline" onclick="copyLink({{ profile.id }})">🔗 Скопировать ссылку</button>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color: var(--muted); margin-bottom: 0.8rem;">Профилей нет.</p>
+        <form method="post" action="{% url 'create_profile' %}" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            {% csrf_token %}
+            <input type="hidden" name="server" value="{{ key }}">
+            <select name="protocol" class="btn btn-outline" style="color: var(--text);">
+                <option value="vless">VLESS</option>
+                <option value="hysteria">Hysteria2</option>
+            </select>
+            <button type="submit" class="btn">Создать профиль</button>
+        </form>
+    {% endif %}
+</div>
+{% endfor %}
+
+<script>
+async function copyLink(profileId) {
+    const resp = await fetch(`/accounts/link/${profileId}/`);
+    if (!resp.ok) { alert('Ошибка получения ссылки'); return; }
+    const link = await resp.text();
+    try { await navigator.clipboard.writeText(link); }
+    catch { prompt('Скопируйте ссылку:', link); return; }
+    alert('Ссылка скопирована: ' + link);
+}
+</script>
+{% endblock %}

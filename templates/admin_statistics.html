@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Статистика серверов{% endblock %}
+{% block content %}
+<h2 style="color: var(--heading); margin-bottom: 1.5rem;">Статистика серверов</h2>
+
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .server-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1.5rem;
+    }
+    .server-title {
+        font-size: 1.2rem;
+        color: var(--heading);
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .metric {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .metric:last-child { border-bottom: none; }
+    .metric-label { color: var(--muted); font-size: 0.9rem; }
+    .metric-value { font-weight: 600; font-family: monospace; color: var(--heading); }
+
+    .status-badge {
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+    .status-online { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .status-offline { background: rgba(248, 81, 73, 0.2); color: var(--danger); }
+
+    .progress-bar {
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        margin-top: 0.3rem;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 3px;
+    }
+</style>
+
+<div class="stats-grid">
+    <!-- СЕРВЕР 1 -->
+    <div class="server-card">
+        <div class="server-title">
+            {{ server1.name }}
+            {% if server1.online %}
+                <span class="status-badge status-online">ONLINE</span>
+            {% else %}
+                <span class="status-badge status-offline">OFFLINE</span>
+            {% endif %}
+        </div>
+
+        {% if server1.online %}
+            <div class="metric">
+                <span class="metric-label">Пользователей онлайн</span>
+                <span class="metric-value" style="color: var(--success);">{{ server1.onlines }}</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Время работы сервера</span>
+                <span class="metric-value">{{ server1.uptime_days }} д. {{ server1.uptime_hours }} ч.</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Xray Core</span>
+                <span class="metric-value">{{ server1.xray_state }} (v{{ server1.xray_version }})</span>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <div class="metric-label">Загрузка CPU ({{ server1.cpu }}%, {{ server1.cpu_cores }} ядер)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width: {{ server1.cpu }}%;"></div></div>
+            </div>
+
+            <div style="margin-top: 0.8rem;">
+                <div class="metric-label">Память ({{ server1.mem_current }} MB / {{ server1.mem_total }} MB, {{ server1.mem_percent }}%)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width: {{ server1.mem_percent }}%; background: #d29922;"></div></div>
+            </div>
+
+            <div class="metric" style="margin-top: 1rem;">
+                <span class="metric-label">Трафик (всего)</span>
+                <span class="metric-value" style="font-size: 0.85rem; color: var(--muted);">
+                    ↑ {{ server1.net_up|filesizeformat }} | ↓ {{ server1.net_down|filesizeformat }}
+                </span>
+            </div>
+        {% else %}
+            <p style="color: var(--danger);">{{ server1.error }}</p>
+        {% endif %}
+    </div>
+
+    <!-- СЕРВЕР 2 -->
+    <div class="server-card">
+        <div class="server-title">
+            {{ server2.name }}
+            {% if server2.online %}
+                <span class="status-badge status-online">ONLINE</span>
+            {% else %}
+                <span class="status-badge status-offline">OFFLINE</span>
+            {% endif %}
+        </div>
+
+        {% if server2.online %}
+            <div class="metric">
+                <span class="metric-label">Пользователей онлайн</span>
+                <span class="metric-value" style="color: var(--success);">{{ server2.onlines }}</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Время работы сервера</span>
+                <span class="metric-value">{{ server2.uptime_days }} д. {{ server2.uptime_hours }} ч.</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Xray Core</span>
+                <span class="metric-value">{{ server2.xray_state }} (v{{ server2.xray_version }})</span>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <div class="metric-label">Загрузка CPU ({{ server2.cpu }}%, {{ server2.cpu_cores }} ядер)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width: {{ server2.cpu }}%;"></div></div>
+            </div>
+
+            <div style="margin-top: 0.8rem;">
+                <div class="metric-label">Память ({{ server2.mem_current }} MB / {{ server2.mem_total }} MB, {{ server2.mem_percent }}%)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width: {{ server2.mem_percent }}%; background: #d29922;"></div></div>
+            </div>
+
+            <div class="metric" style="margin-top: 1rem;">
+                <span class="metric-label">Трафик (всего)</span>
+                <span class="metric-value" style="font-size: 0.85rem; color: var(--muted);">
+                    ↑ {{ server2.net_up|filesizeformat }} | ↓ {{ server2.net_down|filesizeformat }}
+                </span>
+            </div>
+        {% else %}
+            <p style="color: var(--danger);">{{ server2.error }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

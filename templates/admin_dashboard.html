@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Админка{% endblock %}
+{% block content %}
+<h2 style="color: var(--heading); margin-bottom: 1rem;">Админ-панель</h2>
+
+<div class="card">
+    <p>Всего пользователей: <strong>{{ total_users }}</strong></p>
+    <p>Всего профилей: <strong>{{ total_profiles }}</strong></p>
+    <p>Активных подписок: <strong>{{ active_profiles }}</strong></p>
+</div>
+
+<h3 style="margin-bottom: 1rem;">Пользователи</h3>
+{% for u in users %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <strong>{{ u.username }}</strong> — {{ u.email }}<br>
+            <small style="color: var(--muted);">{{ u.profiles.count }} профилей</small>
+        </div>
+        <a href="{% url 'manage_user' u.id %}" class="btn btn-outline">Управление</a>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
