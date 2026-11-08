@@ -18,6 +18,12 @@ from django.contrib import messages
 from .models import ServerProfile, AdminSettings
 from .forms import SignUpForm
 from .api import get_client_for_server, get_server_domain
+import time
+import json
+import requests
+from django.http import JsonResponse
+from django.contrib.admin.views.decorators import staff_member_required
+from django.views.decorators.http import require_GET
 
 
 # ---------- Публичные страницы ----------
@@ -282,3 +288,63 @@ def admin_statistics(request):
         'server2': server2_stats,
     }
     return render(request, 'admin_statistics.html', context)
+
+
+@staff_member_required
+def admin_statistics(request):
+    """Страница со статистикой (шаблон с графиками)."""
+    return render(request, 'admin_statistics.html')
+
+
+@staff_member_required
+@require_GET
+def api_get_stats(request):
+    """API для получения актуальной статистики серверов для графиков."""
+
+    def get_stats(server_key):
+        try:
+            client = get_client_for_server(server_key)
+            stats = client.get_server_status()
+            if not stats:
+                return {'online': False}
+
+            uptime_sec = stats.get('uptime', 0)
+            mem_total = stats.get('mem', {}).get('total', 0)
+            mem_current = stats.get('mem', {}).get('current', 0)
+
+            return {
+                'online': True,
+                'cpu': stats.get('cpu', 0),
+                'mem_percent': round((mem_current / mem_total * 100), 1) if mem_total > 0 else 0,
+                'uptime': f"{uptime_sec // 86400}д {(uptime_sec % 86400) // 3600}ч",
+                'onlines': stats.get('onlines', 0),
+                'net_up': stats.get('netIO', {}).get('up', 0),
+                'net_down': stats.get('netIO', {}).get('down', 0),
+            }
+        except Exception as e:
+            return {'online': False, 'error': str(e)}
+
+    return JsonResponse({
+        'server1': get_stats('server1'),
+        'server2': get_stats('server2')
+    })
+
+
+@require_GET
+def api_ping_servers(request):
+    """API для проверки пинга серверов (доступно всем авторизованным)."""
+    # Проверяем пинг до панелей (или до портов VPN)
+    from django.conf import settings
+    results = {}
+
+    for key, url in [('server1', settings.SERVER_1_API_URL), ('server2', settings.SERVER_2_API_URL)]:
+        try:
+            start = time.time()
+            # Делаем быстрый запрос, чтобы замерить время ответа
+            requests.get(url, timeout=3, verify=False)
+            ping = int((time.time() - start) * 1000)
+            results[key] = {'online': True, 'ping': ping}
+        except Exception:
+            results[key] = {'online': False, 'ping': 0}
+
+    return JsonResponse(results)

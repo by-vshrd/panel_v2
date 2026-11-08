@@ -1,153 +1,188 @@
 {% extends 'base.html' %}
 {% block title %}Статистика серверов{% endblock %}
 {% block content %}
-<h2 style="color: var(--heading); margin-bottom: 1.5rem;">Статистика серверов</h2>
+<h2 style="color: var(--heading); margin-bottom: 1.5rem;">Статистика серверов (Live)</h2>
+
+<!-- Подключаем Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    .server-card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 1.5rem;
-    }
-    .server-title {
-        font-size: 1.2rem;
-        color: var(--heading);
-        margin-bottom: 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .metric {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-    .metric:last-child { border-bottom: none; }
-    .metric-label { color: var(--muted); font-size: 0.9rem; }
-    .metric-value { font-weight: 600; font-family: monospace; color: var(--heading); }
-
-    .status-badge {
-        padding: 0.2rem 0.6rem;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: bold;
-    }
-    .status-online { background: rgba(63, 185, 80, 0.2); color: var(--success); }
-    .status-offline { background: rgba(248, 81, 73, 0.2); color: var(--danger); }
-
-    .progress-bar {
-        height: 6px;
-        background: var(--border);
-        border-radius: 3px;
-        margin-top: 0.3rem;
-        overflow: hidden;
-    }
-    .progress-fill {
-        height: 100%;
-        background: var(--accent);
-        border-radius: 3px;
-    }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+    .chart-container { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+    .server-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .server-title { font-size: 1.2rem; color: var(--heading); font-weight: bold; }
+    .badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+    .badge.online { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .badge.offline { background: rgba(248, 81, 73, 0.2); color: var(--danger); }
+    .stat-row { display: flex; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .stat-row span { color: var(--muted); }
+    .stat-row strong { color: var(--heading); }
+    .charts-wrapper { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 800px) { .stats-grid, .charts-wrapper { grid-template-columns: 1fr; } }
 </style>
 
 <div class="stats-grid">
-    <!-- СЕРВЕР 1 -->
-    <div class="server-card">
-        <div class="server-title">
-            {{ server1.name }}
-            {% if server1.online %}
-                <span class="status-badge status-online">ONLINE</span>
-            {% else %}
-                <span class="status-badge status-offline">OFFLINE</span>
-            {% endif %}
+    <!-- Блок Сервер 1 -->
+    <div class="chart-container">
+        <div class="server-header">
+            <div class="server-title">Сервер 1</div>
+            <div id="status-1" class="badge offline">Загрузка...</div>
         </div>
-
-        {% if server1.online %}
-            <div class="metric">
-                <span class="metric-label">Пользователей онлайн</span>
-                <span class="metric-value" style="color: var(--success);">{{ server1.onlines }}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Время работы сервера</span>
-                <span class="metric-value">{{ server1.uptime_days }} д. {{ server1.uptime_hours }} ч.</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Xray Core</span>
-                <span class="metric-value">{{ server1.xray_state }} (v{{ server1.xray_version }})</span>
-            </div>
-
-            <div style="margin-top: 1rem;">
-                <div class="metric-label">Загрузка CPU ({{ server1.cpu }}%, {{ server1.cpu_cores }} ядер)</div>
-                <div class="progress-bar"><div class="progress-fill" style="width: {{ server1.cpu }}%;"></div></div>
-            </div>
-
-            <div style="margin-top: 0.8rem;">
-                <div class="metric-label">Память ({{ server1.mem_current }} MB / {{ server1.mem_total }} MB, {{ server1.mem_percent }}%)</div>
-                <div class="progress-bar"><div class="progress-fill" style="width: {{ server1.mem_percent }}%; background: #d29922;"></div></div>
-            </div>
-
-            <div class="metric" style="margin-top: 1rem;">
-                <span class="metric-label">Трафик (всего)</span>
-                <span class="metric-value" style="font-size: 0.85rem; color: var(--muted);">
-                    ↑ {{ server1.net_up|filesizeformat }} | ↓ {{ server1.net_down|filesizeformat }}
-                </span>
-            </div>
-        {% else %}
-            <p style="color: var(--danger);">{{ server1.error }}</p>
-        {% endif %}
+        <div class="stat-row">Онлайн: <strong id="onlines-1">-</strong></div>
+        <div class="stat-row">Uptime: <strong id="uptime-1">-</strong></div>
+        <canvas id="trafficChart1" height="150"></canvas>
     </div>
 
-    <!-- СЕРВЕР 2 -->
-    <div class="server-card">
-        <div class="server-title">
-            {{ server2.name }}
-            {% if server2.online %}
-                <span class="status-badge status-online">ONLINE</span>
-            {% else %}
-                <span class="status-badge status-offline">OFFLINE</span>
-            {% endif %}
+    <!-- Блок Сервер 2 -->
+    <div class="chart-container">
+        <div class="server-header">
+            <div class="server-title">Сервер 2</div>
+            <div id="status-2" class="badge offline">Загрузка...</div>
         </div>
-
-        {% if server2.online %}
-            <div class="metric">
-                <span class="metric-label">Пользователей онлайн</span>
-                <span class="metric-value" style="color: var(--success);">{{ server2.onlines }}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Время работы сервера</span>
-                <span class="metric-value">{{ server2.uptime_days }} д. {{ server2.uptime_hours }} ч.</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Xray Core</span>
-                <span class="metric-value">{{ server2.xray_state }} (v{{ server2.xray_version }})</span>
-            </div>
-
-            <div style="margin-top: 1rem;">
-                <div class="metric-label">Загрузка CPU ({{ server2.cpu }}%, {{ server2.cpu_cores }} ядер)</div>
-                <div class="progress-bar"><div class="progress-fill" style="width: {{ server2.cpu }}%;"></div></div>
-            </div>
-
-            <div style="margin-top: 0.8rem;">
-                <div class="metric-label">Память ({{ server2.mem_current }} MB / {{ server2.mem_total }} MB, {{ server2.mem_percent }}%)</div>
-                <div class="progress-bar"><div class="progress-fill" style="width: {{ server2.mem_percent }}%; background: #d29922;"></div></div>
-            </div>
-
-            <div class="metric" style="margin-top: 1rem;">
-                <span class="metric-label">Трафик (всего)</span>
-                <span class="metric-value" style="font-size: 0.85rem; color: var(--muted);">
-                    ↑ {{ server2.net_up|filesizeformat }} | ↓ {{ server2.net_down|filesizeformat }}
-                </span>
-            </div>
-        {% else %}
-            <p style="color: var(--danger);">{{ server2.error }}</p>
-        {% endif %}
+        <div class="stat-row">Онлайн: <strong id="onlines-2">-</strong></div>
+        <div class="stat-row">Uptime: <strong id="uptime-2">-</strong></div>
+        <canvas id="trafficChart2" height="150"></canvas>
     </div>
 </div>
+
+<div class="charts-wrapper">
+    <div class="chart-container">
+        <canvas id="cpuChart" height="200"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="ramChart" height="200"></canvas>
+    </div>
+</div>
+
+<script>
+// --- Настройка графиков ---
+const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: { legend: { labels: { color: '#c9d1d9' } } },
+    scales: {
+        x: { ticks: { color: '#8b949e', maxTicksLimit: 5 }, grid: { color: '#30363d' } },
+        y: { ticks: { color: '#8b949e' }, grid: { color: '#30363d' }, beginAtZero: true }
+    }
+};
+
+// Инициализация графиков
+const trafficChart1 = new Chart(document.getElementById('trafficChart1'), {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [
+            { label: 'Upload (KB/s)', data: [], borderColor: '#58a6ff', tension: 0.3, borderWidth: 2 },
+            { label: 'Download (KB/s)', data: [], borderColor: '#3fb950', tension: 0.3, borderWidth: 2 }
+        ]
+    },
+    options: { ...commonOptions, plugins: { title: { display: true, text: 'Трафик (Сервер 1)', color: '#f0f6fc' } } }
+});
+
+const trafficChart2 = new Chart(document.getElementById('trafficChart2'), {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [
+            { label: 'Upload (KB/s)', data: [], borderColor: '#58a6ff', tension: 0.3, borderWidth: 2 },
+            { label: 'Download (KB/s)', data: [], borderColor: '#3fb950', tension: 0.3, borderWidth: 2 }
+        ]
+    },
+    options: { ...commonOptions, plugins: { title: { display: true, text: 'Трафик (Сервер 2)', color: '#f0f6fc' } } }
+});
+
+const cpuChart = new Chart(document.getElementById('cpuChart'), {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [
+            { label: 'CPU % (Сервер 1)', data: [], borderColor: '#d29922', tension: 0.3 },
+            { label: 'CPU % (Сервер 2)', data: [], borderColor: '#f85149', tension: 0.3 }
+        ]
+    },
+    options: { ...commonOptions, plugins: { title: { display: true, text: 'Загрузка CPU', color: '#f0f6fc' } }, scales: { y: { max: 100 } } }
+});
+
+const ramChart = new Chart(document.getElementById('ramChart'), {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [
+            { label: 'RAM % (Сервер 1)', data: [], borderColor: '#d29922', tension: 0.3 },
+            { label: 'RAM % (Сервер 2)', data: [], borderColor: '#f85149', tension: 0.3 }
+        ]
+    },
+    options: { ...commonOptions, plugins: { title: { display: true, text: 'Загрузка RAM', color: '#f0f6fc' } }, scales: { y: { max: 100 } } }
+});
+
+// --- Логика обновления данных ---
+let lastNet1 = { up: 0, down: 0 };
+let lastNet2 = { up: 0, down: 0 };
+
+function addData(chart, label, data1, data2) {
+    chart.data.labels.push(label);
+    chart.data.datasets[0].data.push(data1);
+    chart.data.datasets[1].data.push(data2);
+
+    // Ограничиваем график 20 точками (чтобы не сжимался)
+    if (chart.data.labels.length > 20) {
+        chart.data.labels.shift();
+        chart.data.datasets.forEach(ds => ds.data.shift());
+    }
+    chart.update();
+}
+
+async function fetchStats() {
+    try {
+        const resp = await fetch('/accounts/api/stats/');
+        const data = await resp.json();
+        const timeLabel = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+
+        // Обработка Сервера 1
+        if (data.server1.online) {
+            document.getElementById('status-1').className = 'badge online';
+            document.getElementById('status-1').textContent = 'ONLINE';
+            document.getElementById('onlines-1').textContent = data.server1.onlines;
+            document.getElementById('uptime-1').textContent = data.server1.uptime;
+
+            // Считаем скорость (байты в секунду -> КБ/с)
+            let speedUp1 = Math.max(0, (data.server1.net_up - lastNet1.up) / 1024 / 10);
+            let speedDown1 = Math.max(0, (data.server1.net_down - lastNet1.down) / 1024 / 10);
+            lastNet1 = { up: data.server1.net_up, down: data.server1.net_down };
+            addData(trafficChart1, timeLabel, speedUp1.toFixed(1), speedDown1.toFixed(1));
+        } else {
+            document.getElementById('status-1').className = 'badge offline';
+            document.getElementById('status-1').textContent = 'OFFLINE';
+        }
+
+        // Обработка Сервера 2
+        if (data.server2.online) {
+            document.getElementById('status-2').className = 'badge online';
+            document.getElementById('status-2').textContent = 'ONLINE';
+            document.getElementById('onlines-2').textContent = data.server2.onlines;
+            document.getElementById('uptime-2').textContent = data.server2.uptime;
+
+            let speedUp2 = Math.max(0, (data.server2.net_up - lastNet2.up) / 1024 / 10);
+            let speedDown2 = Math.max(0, (data.server2.net_down - lastNet2.down) / 1024 / 10);
+            lastNet2 = { up: data.server2.net_up, down: data.server2.net_down };
+            addData(trafficChart2, timeLabel, speedUp2.toFixed(1), speedDown2.toFixed(1));
+        } else {
+            document.getElementById('status-2').className = 'badge offline';
+            document.getElementById('status-2').textContent = 'OFFLINE';
+        }
+
+        // Обновление общих графиков
+        addData(cpuChart, timeLabel, data.server1.cpu || 0, data.server2.cpu || 0);
+        addData(ramChart, timeLabel, data.server1.mem_percent || 0, data.server2.mem_percent || 0);
+
+    } catch (e) {
+        console.error('Ошибка получения статистики', e);
+    }
+}
+
+// Запускаем каждые 10 секунд
+fetchStats();
+setInterval(fetchStats, 10000);
+</script>
 {% endblock %}

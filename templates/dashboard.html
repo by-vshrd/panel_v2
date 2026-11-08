@@ -6,6 +6,7 @@
 {% for key, data in servers.items %}
 <div class="card">
     <h3>{{ data.name }}</h3>
+    <span id="ping-{{ key }}" style="font-size: 0.8rem; margin-left: 10px; color: var(--muted);">проверка...</span>
     {% if data.profiles %}
         {% for profile in data.profiles %}
         <div style="border-top: 1px solid var(--border); padding-top: 0.8rem; margin-top: 0.8rem;">
@@ -47,5 +48,30 @@ async function copyLink(profileId) {
     catch { prompt('Скопируйте ссылку:', link); return; }
     alert('Ссылка скопирована: ' + link);
 }
+</script>
+<script>
+async function checkPing() {
+    try {
+        const resp = await fetch('/accounts/api/ping/');
+        const data = await resp.json();
+
+        ['server1', 'server2'].forEach(key => {
+            const el = document.getElementById('ping-' + key);
+            if (!el) return;
+
+            if (data[key].online) {
+                el.innerHTML = `🟢 <span style="color: var(--success);">${data[key].ping} ms</span>`;
+            } else {
+                el.innerHTML = `🔴 <span style="color: var(--danger);">Офлайн</span>`;
+            }
+        });
+    } catch (e) {
+        console.error('Ошибка проверки пинга', e);
+    }
+}
+
+// Проверяем каждые 30 секунд
+checkPing();
+setInterval(checkPing, 30000);
 </script>
 {% endblock %}
