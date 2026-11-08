@@ -299,8 +299,6 @@ def admin_statistics(request):
 @staff_member_required
 @require_GET
 def api_get_stats(request):
-    """API для получения актуальной статистики серверов для графиков."""
-
     def get_stats(server_key):
         try:
             client = get_client_for_server(server_key)
@@ -312,14 +310,28 @@ def api_get_stats(request):
             mem_total = stats.get('mem', {}).get('total', 0)
             mem_current = stats.get('mem', {}).get('current', 0)
 
+            # Безопасное извлечение чисел
+            def safe_int(val, default=0):
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    return default
+
+            def safe_float(val, default=0.0):
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return default
+
             return {
                 'online': True,
-                'cpu': stats.get('cpu', 0),
-                'mem_percent': round((mem_current / mem_total * 100), 1) if mem_total > 0 else 0,
+                'cpu': safe_float(stats.get('cpu', 0)),
+                'mem_percent': round((safe_float(mem_current) / safe_float(mem_total) * 100), 1) if safe_float(
+                    mem_total) > 0 else 0,
                 'uptime': f"{uptime_sec // 86400}д {(uptime_sec % 86400) // 3600}ч",
-                'onlines': stats.get('onlines', 0),
-                'net_up': stats.get('netIO', {}).get('up', 0),
-                'net_down': stats.get('netIO', {}).get('down', 0),
+                'onlines': safe_int(stats.get('onlines', 0)),
+                'net_up': safe_int(stats.get('netIO', {}).get('up', 0)),
+                'net_down': safe_int(stats.get('netIO', {}).get('down', 0)),
             }
         except Exception as e:
             return {'online': False, 'error': str(e)}
@@ -328,7 +340,6 @@ def api_get_stats(request):
         'server1': get_stats('server1'),
         'server2': get_stats('server2')
     })
-
 
 @require_GET
 def api_ping_servers(request):
