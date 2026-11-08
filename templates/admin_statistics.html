@@ -1,225 +1,197 @@
 {% extends 'base.html' %}
 {% block title %}Статистика серверов{% endblock %}
 {% block content %}
-<h2 style="color: var(--heading); margin-bottom: 1.5rem;">Статистика серверов (Live)</h2>
+<h2 style="color: var(--heading); margin-bottom: 1.5rem;">Статистика серверов</h2>
 
-<!-- Подключаем Chart.js -->
+<div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;" id="range-selectors">
+    <button class="btn btn-outline range-btn active" data-range="live">Live (10с)</button>
+    <button class="btn btn-outline range-btn" data-range="1m">1 минута</button>
+    <button class="btn btn-outline range-btn" data-range="10m">10 минут</button>
+    <button class="btn btn-outline range-btn" data-range="1h">1 час</button>
+    <button class="btn btn-outline range-btn" data-range="24h">24 часа</button>
+    <button class="btn btn-outline range-btn" data-range="7d">Неделя</button>
+</div>
+
+<div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+    <div class="card server-card" style="padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin:0;">Сервер 1</h3>
+            <span id="s1-status" class="badge offline" style="background: var(--border); color: var(--muted); padding: 0.3rem 0.8rem; border-radius: 4px;">Ожидание</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+            <div>CPU: <strong id="s1-cpu" style="color: var(--accent);">0%</strong></div>
+            <div>RAM: <strong id="s1-ram" style="color: #d29922;">0%</strong></div>
+            <div>Онлайн: <strong id="s1-onlines" style="color: var(--success);">0</strong></div>
+            <div>Uptime: <strong id="s1-uptime" style="color: var(--text);">0д 0ч</strong></div>
+        </div>
+    </div>
+
+    <div class="card server-card" style="padding: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin:0;">Сервер 2</h3>
+            <span id="s2-status" class="badge offline" style="background: var(--border); color: var(--muted); padding: 0.3rem 0.8rem; border-radius: 4px;">Ожидание</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+            <div>CPU: <strong id="s2-cpu" style="color: var(--accent);">0%</strong></div>
+            <div>RAM: <strong id="s2-ram" style="color: #d29922;">0%</strong></div>
+            <div>Онлайн: <strong id="s2-onlines" style="color: var(--success);">0</strong></div>
+            <div>Uptime: <strong id="s2-uptime" style="color: var(--text);">0д 0ч</strong></div>
+        </div>
+    </div>
+</div>
+
+<!-- Графики -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <div class="card" style="padding: 1rem; height: 300px; position: relative;">
+        <canvas id="chartNetwork"></canvas>
+    </div>
+    <div class="card" style="padding: 1rem; height: 300px; position: relative;">
+        <canvas id="chartSystem"></canvas>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
-    .chart-container {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem;
-    height: 300px; /* Фиксированная высота */
-    display: flex;
-    flex-direction: column;
-}
-.chart-container canvas {
-    flex-grow: 1;
-    min-height: 0; /* Важно для флекс-контейнера */
-}
-    .server-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .server-title { font-size: 1.2rem; color: var(--heading); font-weight: bold; }
-    .badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
-    .badge.online { background: rgba(63, 185, 80, 0.2); color: var(--success); }
-    .badge.offline { background: rgba(248, 81, 73, 0.2); color: var(--danger); }
-    .stat-row { display: flex; gap: 1rem; margin-bottom: 0.5rem; font-size: 0.9rem; }
-    .stat-row span { color: var(--muted); }
-    .stat-row strong { color: var(--heading); }
-    .charts-wrapper { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-    @media (max-width: 800px) { .stats-grid, .charts-wrapper { grid-template-columns: 1fr; } }
-</style>
-
-<div class="stats-grid">
-    <!-- Блок Сервер 1 -->
-    <div class="chart-container">
-        <div class="server-header">
-            <div class="server-title">Сервер 1</div>
-            <div id="status-1" class="badge offline">Загрузка...</div>
-        </div>
-        <div class="stat-row">Онлайн: <strong id="onlines-1">-</strong></div>
-        <div class="stat-row">Uptime: <strong id="uptime-1">-</strong></div>
-        <canvas id="trafficChart1" height="150"></canvas>
-    </div>
-
-    <!-- Блок Сервер 2 -->
-    <div class="chart-container">
-        <div class="server-header">
-            <div class="server-title">Сервер 2</div>
-            <div id="status-2" class="badge offline">Загрузка...</div>
-        </div>
-        <div class="stat-row">Онлайн: <strong id="onlines-2">-</strong></div>
-        <div class="stat-row">Uptime: <strong id="uptime-2">-</strong></div>
-        <canvas id="trafficChart2" height="150"></canvas>
-    </div>
-</div>
-
-<div class="charts-wrapper">
-    <div class="chart-container">
-        <canvas id="cpuChart" height="200"></canvas>
-    </div>
-    <div class="chart-container">
-        <canvas id="ramChart" height="200"></canvas>
-    </div>
-</div>
-
 <script>
-// --- Настройка графиков ---
-const commonOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false, // Отключаем анимацию для предотвращения зависаний
-    plugins: { legend: { labels: { color: '#c9d1d9' } } },
-    scales: {
-        x: { ticks: { color: '#8b949e', maxTicksLimit: 6 }, grid: { color: '#30363d' } },
-        y: {
-            ticks: { color: '#8b949e' },
-            grid: { color: '#30363d' },
-            beginAtZero: true,
-            suggestedMax: 100 // По умолчанию шкала до 100
-        }
-    }
-};
+// Настройка шрифтов и цветов Chart.js
+Chart.defaults.color = '#8b949e';
+Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
+Chart.defaults.borderColor = '#30363d';
+
+// Функция создания градиента для заливки
+function createGradient(ctx, colorStart, colorEnd) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, colorStart);
+    gradient.addColorStop(1, colorEnd);
+    return gradient;
+}
 
 // Инициализация графиков
-const trafficChart1 = new Chart(document.getElementById('trafficChart1'), {
+const ctxNet = document.getElementById('chartNetwork').getContext('2d');
+const chartNetwork = new Chart(ctxNet, {
     type: 'line',
     data: {
         labels: [],
         datasets: [
-            { label: 'Up (KB/s)', data: [], borderColor: '#58a6ff', tension: 0.3, borderWidth: 2, pointRadius: 0 },
-            { label: 'Down (KB/s)', data: [], borderColor: '#3fb950', tension: 0.3, borderWidth: 2, pointRadius: 0 }
+            { label: 'Upload', data: [], borderColor: '#58a6ff', backgroundColor: createGradient(ctxNet, 'rgba(88,166,255,0.3)', 'rgba(88,166,255,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+            { label: 'Download', data: [], borderColor: '#3fb950', backgroundColor: createGradient(ctxNet, 'rgba(63,185,80,0.3)', 'rgba(63,185,80,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
         ]
     },
-    options: { ...commonOptions, plugins: { title: { display: true, text: 'Трафик (Сервер 1)', color: '#f0f6fc' } } }
-});
-
-const trafficChart2 = new Chart(document.getElementById('trafficChart2'), {
-    type: 'line',
-    data: {
-        labels: [],
-        datasets: [
-            { label: 'Up (KB/s)', data: [], borderColor: '#58a6ff', tension: 0.3, borderWidth: 2, pointRadius: 0 },
-            { label: 'Down (KB/s)', data: [], borderColor: '#3fb950', tension: 0.3, borderWidth: 2, pointRadius: 0 }
-        ]
-    },
-    options: { ...commonOptions, plugins: { title: { display: true, text: 'Трафик (Сервер 2)', color: '#f0f6fc' } } }
-});
-
-const cpuChart = new Chart(document.getElementById('cpuChart'), {
-    type: 'line',
-    data: {
-        labels: [],
-        datasets: [
-            { label: 'CPU % (S1)', data: [], borderColor: '#d29922', tension: 0.3, pointRadius: 0 },
-            { label: 'CPU % (S2)', data: [], borderColor: '#f85149', tension: 0.3, pointRadius: 0 }
-        ]
-    },
-    options: { ...commonOptions, plugins: { title: { display: true, text: 'Загрузка CPU', color: '#f0f6fc' } }, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, max: 100 } } }
-});
-
-const ramChart = new Chart(document.getElementById('ramChart'), {
-    type: 'line',
-    data: {
-        labels: [],
-        datasets: [
-            { label: 'RAM % (S1)', data: [], borderColor: '#d29922', tension: 0.3, pointRadius: 0 },
-            { label: 'RAM % (S2)', data: [], borderColor: '#f85149', tension: 0.3, pointRadius: 0 }
-        ]
-    },
-    options: { ...commonOptions, plugins: { title: { display: true, text: 'Загрузка RAM', color: '#f0f6fc' } }, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, max: 100 } } }
-});
-
-// --- Логика обновления ---
-let lastNet1 = null;
-let lastNet2 = null;
-
-function addData(chart, label, data1, data2) {
-    // Защита от NaN и undefined
-    const safeData1 = (typeof data1 === 'number' && !isNaN(data1) && isFinite(data1)) ? data1 : 0;
-    const safeData2 = (typeof data2 === 'number' && !isNaN(data2) && isFinite(data2)) ? data2 : 0;
-
-    chart.data.labels.push(label);
-    chart.data.datasets[0].data.push(safeData1);
-    chart.data.datasets[1].data.push(safeData2);
-
-    if (chart.data.labels.length > 20) {
-        chart.data.labels.shift();
-        chart.data.datasets.forEach(ds => ds.data.shift());
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { title: { display: true, text: 'Сетевой трафик (Сервер 1)', color: '#f0f6fc' }, legend: { position: 'top' } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#30363d' } } },
+        animation: { duration: 500 }
     }
-    chart.update('none'); // Обновляем без анимации
-}
+});
 
-async function fetchStats() {
+const ctxSys = document.getElementById('chartSystem').getContext('2d');
+const chartSystem = new Chart(ctxSys, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [
+            { label: 'CPU S1', data: [], borderColor: '#d29922', backgroundColor: createGradient(ctxSys, 'rgba(210,153,34,0.3)', 'rgba(210,153,34,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+            { label: 'RAM S1', data: [], borderColor: '#f85149', backgroundColor: createGradient(ctxSys, 'rgba(248,81,73,0.3)', 'rgba(248,81,73,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+        ]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { title: { display: true, text: 'Системные ресурсы (Сервер 1)', color: '#f0f6fc' }, legend: { position: 'top' } },
+        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, max: 100, grid: { color: '#30363d' } } },
+        animation: { duration: 500 }
+    }
+});
+
+// Переменные для хранения предыдущих значений трафика (для Live)
+let lastNet = { up: 0, down: 0 };
+let currentRange = 'live';
+let intervalId = null;
+
+// Обработка кнопок периода
+document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active', 'btn'));
+        document.querySelectorAll('.range-btn').forEach(b => b.classList.add('btn-outline'));
+        this.classList.remove('btn-outline');
+        this.classList.add('active', 'btn');
+
+        currentRange = this.dataset.range;
+        fetchData();
+    });
+});
+
+async function fetchData() {
     try {
-        const resp = await fetch('/accounts/api/stats/');
-        if (!resp.ok) throw new Error('Network error');
+        const resp = await fetch(`/accounts/api/stats/?range=${currentRange}`);
         const data = await resp.json();
-        const timeLabel = new Date().toLocaleTimeString('ru-RU', { hour12: false });
 
-        // === Сервер 1 ===
-        if (data.server1 && data.server1.online) {
-            document.getElementById('status-1').className = 'badge online';
-            document.getElementById('status-1').textContent = 'ONLINE';
-            document.getElementById('onlines-1').textContent = data.server1.onlines;
-            document.getElementById('uptime-1').textContent = data.server1.uptime;
+        if (currentRange === 'live') {
+            // Обновляем карточки
+            if (data.server1 && data.server1.online) {
+                document.getElementById('s1-status').textContent = 'ONLINE';
+                document.getElementById('s1-status').style.cssText = 'background: rgba(63,185,80,0.2); color: var(--success); padding: 0.3rem 0.8rem; border-radius: 4px; font-weight:bold;';
+                document.getElementById('s1-cpu').textContent = data.server1.cpu + '%';
+                document.getElementById('s1-ram').textContent = data.server1.mem_percent + '%';
+                document.getElementById('s1-onlines').textContent = data.server1.onlines;
+                document.getElementById('s1-uptime').textContent = data.server1.uptime;
 
-            // Вычисляем скорость только если есть предыдущие данные
-            if (lastNet1 !== null) {
-                let speedUp1 = Math.max(0, (data.server1.net_up - lastNet1.up) / 1024 / 10);
-                let speedDown1 = Math.max(0, (data.server1.net_down - lastNet1.down) / 1024 / 10);
-                // Ограничиваем максимум 100000 КБ/с (100 МБ/с), чтобы график не улетал
-                speedUp1 = Math.min(speedUp1, 100000);
-                speedDown1 = Math.min(speedDown1, 100000);
-                addData(trafficChart1, timeLabel, speedUp1, speedDown1);
+                // Считаем скорость
+                if (lastNet.up > 0) {
+                    let speedUp = Math.max(0, (data.server1.net_up - lastNet.up) / 1024 / 10);
+                    let speedDown = Math.max(0, (data.server1.net_down - lastNet.down) / 1024 / 10);
+
+                    // Добавляем на график
+                    const time = new Date().toLocaleTimeString('ru-RU', {hour12:false});
+                    chartNetwork.data.labels.push(time);
+                    chartNetwork.data.datasets[0].data.push(speedUp);
+                    chartNetwork.data.datasets[1].data.push(speedDown);
+
+                    if (chartNetwork.data.labels.length > 20) {
+                        chartNetwork.data.labels.shift();
+                        chartNetwork.data.datasets.forEach(ds => ds.data.shift());
+                    }
+                    chartNetwork.update('none');
+                }
+                lastNet = { up: data.server1.net_up, down: data.server1.net_down };
+
+                // Системные ресурсы (Live)
+                const time = new Date().toLocaleTimeString('ru-RU', {hour12:false});
+                chartSystem.data.labels.push(time);
+                chartSystem.data.datasets[0].data.push(data.server1.cpu);
+                chartSystem.data.datasets[1].data.push(data.server1.mem_percent);
+                if (chartSystem.data.labels.length > 20) {
+                    chartSystem.data.labels.shift();
+                    chartSystem.data.datasets.forEach(ds => ds.data.shift());
+                }
+                chartSystem.update('none');
             }
-            lastNet1 = { up: data.server1.net_up, down: data.server1.net_down };
         } else {
-            document.getElementById('status-1').className = 'badge offline';
-            document.getElementById('status-1').textContent = 'OFFLINE';
-            lastNet1 = null; // сбрасываем, чтобы при возврате сервера не было скачка
+            // Режим истории
+            const s1Data = data.server1 || [];
+            chartNetwork.data.labels = s1Data.map(d => d.time);
+            // Считаем разницу трафика для истории (скорость)
+            chartNetwork.data.datasets[0].data = s1Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.up - s1Data[i-1].up) / 1024 / 60));
+            chartNetwork.data.datasets[1].data = s1Data.map((d, i) => i === 0 ? 0 : Math.max(0, (d.down - s1Data[i-1].down) / 1024 / 60));
+            chartNetwork.update();
+
+            chartSystem.data.labels = s1Data.map(d => d.time);
+            chartSystem.data.datasets[0].data = s1Data.map(d => d.cpu);
+            chartSystem.data.datasets[1].data = s1Data.map(d => d.mem);
+            chartSystem.update();
         }
-
-        // === Сервер 2 ===
-        if (data.server2 && data.server2.online) {
-            document.getElementById('status-2').className = 'badge online';
-            document.getElementById('status-2').textContent = 'ONLINE';
-            document.getElementById('onlines-2').textContent = data.server2.onlines;
-            document.getElementById('uptime-2').textContent = data.server2.uptime;
-
-            if (lastNet2 !== null) {
-                let speedUp2 = Math.max(0, (data.server2.net_up - lastNet2.up) / 1024 / 10);
-                let speedDown2 = Math.max(0, (data.server2.net_down - lastNet2.down) / 1024 / 10);
-                speedUp2 = Math.min(speedUp2, 100000);
-                speedDown2 = Math.min(speedDown2, 100000);
-                addData(trafficChart2, timeLabel, speedUp2, speedDown2);
-            }
-            lastNet2 = { up: data.server2.net_up, down: data.server2.net_down };
-        } else {
-            document.getElementById('status-2').className = 'badge offline';
-            document.getElementById('status-2').textContent = 'OFFLINE';
-            lastNet2 = null;
-        }
-
-        // === Общие графики CPU и RAM ===
-        const cpu1 = (data.server1 && data.server1.online) ? data.server1.cpu : 0;
-        const cpu2 = (data.server2 && data.server2.online) ? data.server2.cpu : 0;
-        const ram1 = (data.server1 && data.server1.online) ? data.server1.mem_percent : 0;
-        const ram2 = (data.server2 && data.server2.online) ? data.server2.mem_percent : 0;
-
-        addData(cpuChart, timeLabel, cpu1, cpu2);
-        addData(ramChart, timeLabel, ram1, ram2);
-
     } catch (e) {
-        console.error('Ошибка получения статистики', e);
+        console.error("Ошибка загрузки статистики", e);
     }
 }
 
-// Запуск с интервалом
-fetchStats();
-setInterval(fetchStats, 10000);
+// Управление автообновлением
+function startLive() {
+    if (intervalId) clearInterval(intervalId);
+    fetchData();
+    intervalId = setInterval(fetchData, 10000);
+}
+
+// Инициализация
+startLive();
 </script>
 {% endblock %}

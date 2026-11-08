@@ -296,50 +296,95 @@ def admin_statistics(request):
     return render(request, 'admin_statistics.html')
 
 
+from datetime import timedelta
+from django.utils import timezone
+from .models import ServerMetric  # не забудьте импортировать
+
+
 @staff_member_required
 @require_GET
 def api_get_stats(request):
-    def get_stats(server_key):
-        try:
-            client = get_client_for_server(server_key)
-            stats = client.get_server_status()
-            if not stats:
-                return {'online': False}
+    time_range = request.GET.get('range', 'live')  # live, 1m, 10m, 1h, 24h, 7d
+    now = timezone.now()
 
-            uptime_sec = stats.get('uptime', 0)
-            mem_total = stats.get('mem', {}).get('total', 0)
-            mem_current = stats.get('mem', {}).get('current', 0)
+    # 1. Сохраняем текущие данные в БД, если прошло больше 60 секунд с последнего сохранения
+    last_metric = ServerMetric.objects.order_by('-timestamp').first()
+    if not last_metric or (now - last_metric.timestamp).total_seconds() > 60:
+        for server_key in ['server1', 'server2']:
+            try:
+                client = get_client_for_server(server_key)
+                stats = client.get_server_status()
+                if stats:
+                    uptime_sec = stats.get('uptime', 0)
+                    mem_total = float(stats.get('mem', {}).get('total', 0))
+                    mem_current = float(stats.get('mem', {}).get('current', 0))
+                    mem_percent = (mem_current / mem_total * 100) if mem_total > 0 else 0
 
-            # Безопасное извлечение чисел
-            def safe_int(val, default=0):
-                try:
-                    return int(val)
-                except (ValueError, TypeError):
-                    return default
+                    ServerMetric.objects.create(
+                        server=server_key,
+                        cpu=float(stats.get('cpu', 0)),
+                        mem_percent=round(mem_percent, 1),
+                        net_up=int(stats.get('netIO', {}).get('up', 0)),
+                        net_down=int(stats.get('netIO', {}).get('down', 0)),
+                        onlines=int(stats.get('onlines', 0))
+                    )
+            except Exception:
+                pass
 
-            def safe_float(val, default=0.0):
-                try:
-                    return float(val)
-                except (ValueError, TypeError):
-                    return default
+        # Очистка старых данных (старше 7 дней), чтобы БД не разрасталась
+        ServerMetric.objects.filter(timestamp__lt=now - timedelta(days=7)).delete()
 
-            return {
-                'online': True,
-                'cpu': safe_float(stats.get('cpu', 0)),
-                'mem_percent': round((safe_float(mem_current) / safe_float(mem_total) * 100), 1) if safe_float(
-                    mem_total) > 0 else 0,
-                'uptime': f"{uptime_sec // 86400}д {(uptime_sec % 86400) // 3600}ч",
-                'onlines': safe_int(stats.get('onlines', 0)),
-                'net_up': safe_int(stats.get('netIO', {}).get('up', 0)),
-                'net_down': safe_int(stats.get('netIO', {}).get('down', 0)),
-            }
-        except Exception as e:
-            return {'online': False, 'error': str(e)}
+    # 2. Формируем ответ в зависимости от запрошенного периода
+    if time_range == 'live':
+        # Возвращаем просто текущие данные для "живого" обновления
+        res = {}
+        for key in ['server1', 'server2']:
+            try:
+                client = get_client_for_server(key)
+                stats = client.get_server_status()
+                if stats:
+                    mem_total = float(stats.get('mem', {}).get('total', 0))
+                    mem_cur = float(stats.get('mem', {}).get('current', 0))
+                    res[key] = {
+                        'online': True,
+                        'cpu': float(stats.get('cpu', 0)),
+                        'mem_percent': round((mem_cur / mem_total * 100) if mem_total > 0 else 0, 1),
+                        'onlines': int(stats.get('onlines', 0)),
+                        'uptime': f"{stats.get('uptime', 0) // 86400}д {(stats.get('uptime', 0) % 86400) // 3600}ч",
+                        'net_up': int(stats.get('netIO', {}).get('up', 0)),
+                        'net_down': int(stats.get('netIO', {}).get('down', 0)),
+                    }
+                else:
+                    res[key] = {'online': False}
+            except Exception:
+                res[key] = {'online': False}
+        return JsonResponse(res)
 
-    return JsonResponse({
-        'server1': get_stats('server1'),
-        'server2': get_stats('server2')
-    })
+    # Для истории
+    delta_map = {'1m': 1, '10m': 10, '1h': 60, '24h': 1440, '7d': 10080}
+    minutes = delta_map.get(time_range, 1)
+    start_time = now - timedelta(minutes=minutes)
+
+    data = {'server1': [], 'server2': []}
+    metrics = ServerMetric.objects.filter(timestamp__gte=start_time).order_by('timestamp')
+
+    for m in metrics:
+        # Форматируем метку времени для графика (часы:минуты или дни)
+        if time_range in ['7d', '24h']:
+            label = m.timestamp.strftime('%d.%m %H:%M')
+        else:
+            label = m.timestamp.strftime('%H:%M:%S')
+
+        data[m.server].append({
+            'time': label,
+            'cpu': m.cpu,
+            'mem': m.mem_percent,
+            'up': m.net_up,
+            'down': m.net_down,
+            'onlines': m.onlines
+        })
+
+    return JsonResponse(data)
 
 @require_GET
 def api_ping_servers(request):

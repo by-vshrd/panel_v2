@@ -53,3 +53,18 @@ class AdminSettings(models.Model):
     def load(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class ServerMetric(models.Model):
+    SERVER_CHOICES = [('server1', 'Сервер 1'), ('server2', 'Сервер 2')]
+
+    server = models.CharField(max_length=10, choices=SERVER_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    cpu = models.FloatField(default=0)
+    mem_percent = models.FloatField(default=0)
+    net_up = models.BigIntegerField(default=0)
+    net_down = models.BigIntegerField(default=0)
+    onlines = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['timestamp']
