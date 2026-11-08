@@ -1,6 +1,7 @@
 import io
 import qrcode
 import requests
+import time
 from uuid import uuid4
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -15,15 +16,10 @@ from django.urls import reverse_lazy
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib import messages
-from .models import ServerProfile, AdminSettings
+
+from .models import ServerProfile, AdminSettings, ServerMetric
 from .forms import SignUpForm
 from .api import get_client_for_server, get_server_domain
-import time
-import json
-import requests
-from django.http import JsonResponse
-from django.contrib.admin.views.decorators import staff_member_required
-from django.views.decorators.http import require_GET
 
 
 # ---------- Публичные страницы ----------
@@ -44,7 +40,7 @@ class SignUpView(CreateView):
 
 @require_GET
 def server_status(request):
-    """Проверяет доступность обоих серверов (упрощённо: по доступности панели)."""
+    """Проверяет доступность обоих серверов."""
     statuses = {}
     for key, url in [('server1', settings.SERVER_1_API_URL),
                      ('server2', settings.SERVER_2_API_URL)]:
@@ -60,8 +56,6 @@ def server_status(request):
 @login_required
 def dashboard(request):
     profiles = ServerProfile.objects.filter(user=request.user).order_by('server', 'protocol')
-
-    # Группируем по серверу
     servers_data = {
         'server1': {
             'name': 'Сервер 1',
@@ -234,80 +228,11 @@ def admin_settings(request):
         return redirect('admin_settings')
     return render(request, 'admin_settings.html', {'settings': settings_obj})
 
-import math  # для форматирования размера
 
-
-# ... остальные импорты ...
-
+# ---------- Статистика ----------
 @staff_member_required
 def admin_statistics(request):
-    """Страница статистики для администраторов."""
-
-    def get_stats_for_server(server_key):
-        try:
-            client = get_client_for_server(server_key)
-            stats = client.get_server_status()
-            if not stats:
-                return {'online': False, 'error': 'Нет данных от API'}
-
-            # Форматируем данные для удобного вывода
-            uptime_sec = stats.get('uptime', 0)
-            uptime_days = uptime_sec // 86400
-            uptime_hours = (uptime_sec % 86400) // 3600
-
-            # Размер памяти (обычно приходит в MB)
-            mem_total = stats.get('mem', {}).get('total', 0)
-            mem_current = stats.get('mem', {}).get('current', 0)
-            mem_percent = round((mem_current / mem_total * 100), 1) if mem_total > 0 else 0
-
-            return {
-                'online': True,
-                'name': 'Сервер 1' if server_key == 'server1' else 'Сервер 2',
-                'cpu': stats.get('cpu', 0),
-                'cpu_cores': stats.get('cpuCores', 0),
-                'mem_current': mem_current,
-                'mem_total': mem_total,
-                'mem_percent': mem_percent,
-                'uptime_days': uptime_days,
-                'uptime_hours': uptime_hours,
-                'onlines': stats.get('onlines', 0),
-                'xray_state': stats.get('xray', {}).get('state', 'unknown'),
-                'xray_version': stats.get('xray', {}).get('version', 'unknown'),
-                'net_up': stats.get('netIO', {}).get('up', 0),
-                'net_down': stats.get('netIO', {}).get('down', 0),
-            }
-        except Exception as e:
-            return {'online': False, 'name': 'Сервер 1' if server_key == 'server1' else 'Сервер 2', 'error': str(e)}
-
-    # Собираем данные с обоих серверов
-    server1_stats = get_stats_for_server('server1')
-    server2_stats = get_stats_for_server('server2')
-
-    context = {
-        'server1': server1_stats,
-        'server2': server2_stats,
-    }
-    return render(request, 'admin_statistics.html', context)
-
-
-@staff_member_required
-def admin_statistics(request):
-    """Страница со статистикой (шаблон с графиками)."""
     return render(request, 'admin_statistics.html')
-
-
-from datetime import timedelta
-from django.utils import timezone
-from .models import ServerMetric
-
-
-@staff_member_required
-@require_GET
-
-
-from datetime import timedelta
-from django.utils import timezone
-from .models import ServerMetric
 
 
 def get_online_count(client):
@@ -341,7 +266,7 @@ def api_get_stats(request):
                     'cpu': float(stats.get('cpu', 0)),
                     'mem_percent': round((float(stats.get('mem', {}).get('current', 0)) / float(
                         stats.get('mem', {}).get('total', 1)) * 100), 1),
-                    'onlines': get_online_count(client),  # Берем реальное количество
+                    'onlines': get_online_count(client),
                     'uptime': f"{stats.get('uptime', 0) // 86400}д {(stats.get('uptime', 0) % 86400) // 3600}ч",
                     'net_up': int(stats.get('netIO', {}).get('up', 0)),
                     'net_down': int(stats.get('netIO', {}).get('down', 0)),
@@ -363,7 +288,7 @@ def api_get_stats(request):
                     )
             ServerMetric.objects.filter(timestamp__lt=now - timedelta(days=7)).delete()
     except Exception:
-        pass  # Если миграций нет, просто не пишем историю
+        pass
 
     # --- Ответ для Live режима ---
     if time_range == 'live':
@@ -388,21 +313,16 @@ def api_get_stats(request):
 
     return JsonResponse(history_data)
 
+
 @require_GET
 def api_ping_servers(request):
-    """API для проверки пинга серверов (доступно всем авторизованным)."""
-    # Проверяем пинг до панелей (или до портов VPN)
-    from django.conf import settings
     results = {}
-
     for key, url in [('server1', settings.SERVER_1_API_URL), ('server2', settings.SERVER_2_API_URL)]:
         try:
             start = time.time()
-            # Делаем быстрый запрос, чтобы замерить время ответа
             requests.get(url, timeout=3, verify=False)
             ping = int((time.time() - start) * 1000)
             results[key] = {'online': True, 'ping': ping}
         except Exception:
             results[key] = {'online': False, 'ping': 0}
-
     return JsonResponse(results)
