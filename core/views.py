@@ -298,45 +298,48 @@ def admin_statistics(request):
 
 from datetime import timedelta
 from django.utils import timezone
-from .models import ServerMetric  # не забудьте импортировать
+from .models import ServerMetric
 
 
 @staff_member_required
 @require_GET
 def api_get_stats(request):
-    time_range = request.GET.get('range', 'live')  # live, 1m, 10m, 1h, 24h, 7d
+    time_range = request.GET.get('range', 'live')
     now = timezone.now()
 
-    # 1. Сохраняем текущие данные в БД, если прошло больше 60 секунд с последнего сохранения
-    last_metric = ServerMetric.objects.order_by('-timestamp').first()
-    if not last_metric or (now - last_metric.timestamp).total_seconds() > 60:
-        for server_key in ['server1', 'server2']:
-            try:
-                client = get_client_for_server(server_key)
-                stats = client.get_server_status()
-                if stats:
-                    uptime_sec = stats.get('uptime', 0)
-                    mem_total = float(stats.get('mem', {}).get('total', 0))
-                    mem_current = float(stats.get('mem', {}).get('current', 0))
-                    mem_percent = (mem_current / mem_total * 100) if mem_total > 0 else 0
+    # --- Блок сохранения истории ---
+    # Оборачиваем в try/except, чтобы если база не готова, графики "live" всё равно работали
+    try:
+        last_metric = ServerMetric.objects.order_by('-timestamp').first()
+        if not last_metric or (now - last_metric.timestamp).total_seconds() > 60:
+            for server_key in ['server1', 'server2']:
+                try:
+                    client = get_client_for_server(server_key)
+                    stats = client.get_server_status()
+                    if stats:
+                        mem_total = float(stats.get('mem', {}).get('total', 0))
+                        mem_current = float(stats.get('mem', {}).get('current', 0))
+                        mem_percent = (mem_current / mem_total * 100) if mem_total > 0 else 0
 
-                    ServerMetric.objects.create(
-                        server=server_key,
-                        cpu=float(stats.get('cpu', 0)),
-                        mem_percent=round(mem_percent, 1),
-                        net_up=int(stats.get('netIO', {}).get('up', 0)),
-                        net_down=int(stats.get('netIO', {}).get('down', 0)),
-                        onlines=int(stats.get('onlines', 0))
-                    )
-            except Exception:
-                pass
+                        ServerMetric.objects.create(
+                            server=server_key,
+                            cpu=float(stats.get('cpu', 0)),
+                            mem_percent=round(mem_percent, 1),
+                            net_up=int(stats.get('netIO', {}).get('up', 0)),
+                            net_down=int(stats.get('netIO', {}).get('down', 0)),
+                            onlines=int(stats.get('onlines', 0))
+                        )
+                except Exception as e:
+                    print(f"Ошибка сохранения метрики для {server_key}: {e}")
 
-        # Очистка старых данных (старше 7 дней), чтобы БД не разрасталась
-        ServerMetric.objects.filter(timestamp__lt=now - timedelta(days=7)).delete()
+            # Очистка старых данных
+            ServerMetric.objects.filter(timestamp__lt=now - timedelta(days=7)).delete()
+    except Exception as e:
+        # Если таблицы в БД нет (забыли миграции), мы просто логируем ошибку и идём дальше
+        print(f"БД не готова (пропустите эту ошибку, если миграции не применены): {e}")
 
-    # 2. Формируем ответ в зависимости от запрошенного периода
+    # --- Возврат данных в реальном времени (Live) ---
     if time_range == 'live':
-        # Возвращаем просто текущие данные для "живого" обновления
         res = {}
         for key in ['server1', 'server2']:
             try:
@@ -355,34 +358,31 @@ def api_get_stats(request):
                         'net_down': int(stats.get('netIO', {}).get('down', 0)),
                     }
                 else:
-                    res[key] = {'online': False}
-            except Exception:
-                res[key] = {'online': False}
+                    res[key] = {'online': False, 'error': 'Нет данных от API'}
+            except Exception as e:
+                res[key] = {'online': False, 'error': str(e)}
         return JsonResponse(res)
 
-    # Для истории
+    # --- Возврат исторических данных ---
     delta_map = {'1m': 1, '10m': 10, '1h': 60, '24h': 1440, '7d': 10080}
     minutes = delta_map.get(time_range, 1)
     start_time = now - timedelta(minutes=minutes)
 
     data = {'server1': [], 'server2': []}
-    metrics = ServerMetric.objects.filter(timestamp__gte=start_time).order_by('timestamp')
+    try:
+        metrics = ServerMetric.objects.filter(timestamp__gte=start_time).order_by('timestamp')
+        for m in metrics:
+            if time_range in ['7d', '24h']:
+                label = m.timestamp.strftime('%d.%m %H:%M')
+            else:
+                label = m.timestamp.strftime('%H:%M:%S')
 
-    for m in metrics:
-        # Форматируем метку времени для графика (часы:минуты или дни)
-        if time_range in ['7d', '24h']:
-            label = m.timestamp.strftime('%d.%m %H:%M')
-        else:
-            label = m.timestamp.strftime('%H:%M:%S')
-
-        data[m.server].append({
-            'time': label,
-            'cpu': m.cpu,
-            'mem': m.mem_percent,
-            'up': m.net_up,
-            'down': m.net_down,
-            'onlines': m.onlines
-        })
+            data[m.server].append({
+                'time': label, 'cpu': m.cpu, 'mem': m.mem_percent,
+                'up': m.net_up, 'down': m.net_down, 'onlines': m.onlines
+            })
+    except Exception:
+        pass  # Если истории нет, вернётся пустой массив
 
     return JsonResponse(data)
 
