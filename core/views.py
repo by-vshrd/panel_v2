@@ -471,28 +471,30 @@ def api_admin_action(request):
     if action == 'extend':
         days = int(data.get('days', 0))
         try:
-            if profile.is_active():
+            if profile.is_active() and profile.subscription_expiry:
                 new_expiry = profile.subscription_expiry + timedelta(days=days)
             else:
                 new_expiry = timezone.now() + timedelta(days=days)
 
-            # Если сокращаем в минус, ставим текущую дату (подписка истекает)
             if new_expiry < timezone.now():
                 new_expiry = timezone.now() - timedelta(minutes=1)
 
             client = get_client_for_server(profile.server)
             client.update_client(
-                email=profile.vpn_email, uuid=str(profile.vpn_uuid),
-                sub_id=profile.vpn_sub_id, expiry_time=new_expiry,
-                enable=(new_expiry > timezone.now()), total_gb=profile.total_gb
+                email=profile.vpn_email,
+                uuid=str(profile.vpn_uuid),
+                sub_id=profile.vpn_sub_id,
+                expiry_time=new_expiry,
+                enable=(new_expiry > timezone.now()),
+                total_gb=profile.total_gb,
             )
 
             profile.subscription_expiry = new_expiry
             profile.save()
             return JsonResponse({'success': True, 'msg': f'Срок изменён на {days} дн.'})
         except Exception as e:
+            # Возвращаем реальный текст ошибки, чтобы увидеть её в тосте
             return JsonResponse({'success': False, 'msg': f'Ошибка API: {e}'})
-
     # --- 4. Удаление ---
     if action == 'delete_sub':
         try:
