@@ -198,6 +198,18 @@ def get_client_for_server(server_key):
         )
     raise ValueError(f'Неизвестный сервер: {server_key}')
 
+def get_online_users(self):
+        """Возвращает список email'ов пользователей, которые сейчас онлайн."""
+        try:
+            url = f'{self.base}/login/panel/api/inbounds/onlines'
+            resp = self.session.post(url, headers=self._headers(), timeout=5)
+            data = self._safe_json(resp)
+            if data.get('success') and isinstance(data.get('obj'), list):
+                return data['obj']
+        except Exception:
+            pass
+        return []
+
 
 def get_server_domain(server_key):
     """Возвращает публичный адрес сервера для формирования ссылок подписки."""

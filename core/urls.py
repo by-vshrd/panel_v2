@@ -24,4 +24,13 @@ urlpatterns = [
     path('admin-panel/statistics/', views.admin_statistics, name='admin_statistics'),
     path('api/stats/', views.api_get_stats, name='api_get_stats'),
     path('api/ping/', views.api_ping_servers, name='api_ping_servers'),
+
+    # Админка
+    path('admin-panel/', views.admin_dashboard, name='admin_dashboard'),
+    path('admin-panel/settings/', views.admin_settings, name='admin_settings'),
+
+    # API для админки
+    path('api/admin/traffic/', views.api_admin_traffic, name='api_admin_traffic'),
+    path('api/admin/users/', views.api_admin_users, name='api_admin_users'),
+    path('api/admin/action/', views.api_admin_action, name='api_admin_action'),
 ]

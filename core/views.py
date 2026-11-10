@@ -1,4 +1,5 @@
 import io
+import json
 import qrcode
 import requests
 import time
@@ -326,3 +327,180 @@ def api_ping_servers(request):
         except Exception:
             results[key] = {'online': False, 'ping': 0}
     return JsonResponse(results)
+
+
+# ... (ваши импорты в начале файла) ...
+
+# ---------- АДМИН-ПАНЕЛЬ И API ----------
+
+@staff_member_required
+def admin_dashboard(request):
+    """Рендерим единую админ-панель (HTML)."""
+    return render(request, 'admin_dashboard.html')
+
+
+@staff_member_required
+@require_GET
+def api_admin_traffic(request):
+    """Возвращает сырые данные о трафике (байты) для графиков."""
+    res = {}
+    for key in ['server1', 'server2']:
+        try:
+            client = get_client_for_server(key)
+            stats = client.get_server_status()
+            if stats:
+                res[key] = {
+                    'online': True,
+                    'up': int(stats.get('netIO', {}).get('up', 0)),
+                    'down': int(stats.get('netIO', {}).get('down', 0)),
+                }
+            else:
+                res[key] = {'online': False}
+        except Exception:
+            res[key] = {'online': False}
+    return JsonResponse(res)
+
+
+@staff_member_required
+@require_GET
+def api_admin_users(request):
+    """Возвращает всех пользователей с их статусом и подписками."""
+    # 1. Собираем онлайн-email'ы с обоих серверов
+    online_emails = set()
+    for key in ['server1', 'server2']:
+        try:
+            client = get_client_for_server(key)
+            emails = client.get_online_users()
+            online_emails.update(emails)
+        except Exception:
+            pass
+
+    # 2. Формируем список пользователей
+    users_data = []
+    for user in User.objects.prefetch_related('profiles').all().order_by('-date_joined'):
+        is_online = False
+        subs = []
+        for p in user.profiles.all():
+            if p.vpn_email in online_emails:
+                is_online = True
+
+            subs.append({
+                'id': p.id,
+                'server': p.get_server_display(),
+                'server_key': p.server,
+                'protocol': p.get_protocol_display(),
+                'protocol_key': p.protocol,
+                'days_left': p.days_left(),
+                'active': p.is_active(),
+            })
+
+        users_data.append({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'online': is_online,
+            'subs': subs
+        })
+
+    return JsonResponse({'users': users_data})
+
+
+@staff_member_required
+@require_POST
+def api_admin_action(request):
+    """Единый эндпоинт для обработки действий (продление, удаление, смена пароля)."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'success': False, 'msg': 'Неверный формат данных'}, status=400)
+
+    action = data.get('action')
+    user_id = data.get('user_id')
+    sub_id = data.get('sub_id')
+
+    user_obj = User.objects.filter(id=user_id).first() if user_id else None
+
+    # --- 1. Смена пароля ---
+    if action == 'change_password':
+        password = data.get('password', '')
+        if len(password) < 6:
+            return JsonResponse({'success': False, 'msg': 'Пароль слишком короткий'})
+        if user_obj:
+            user_obj.set_password(password)
+            user_obj.save()
+            return JsonResponse({'success': True, 'msg': 'Пароль успешно изменён'})
+        return JsonResponse({'success': False, 'msg': 'Пользователь не найден'})
+
+    # --- 2. Создание подписки ---
+    if action == 'create_sub':
+        if not user_obj:
+            return JsonResponse({'success': False, 'msg': 'Пользователь не найден'})
+
+        server_key = data.get('server')
+        protocol = data.get('protocol')
+
+        if ServerProfile.objects.filter(user=user_obj, server=server_key, protocol=protocol).exists():
+            return JsonResponse({'success': False, 'msg': 'Такая подписка уже есть'})
+
+        email = f'{user_obj.username}_{server_key}_{protocol}@vpn.local'
+        vpn_uuid = str(uuid4())
+
+        try:
+            client = get_client_for_server(server_key)
+            result = client.add_client(email, vpn_uuid)
+        except Exception as e:
+            return JsonResponse({'success': False, 'msg': f'Ошибка API: {e}'})
+
+        admin_cfg = AdminSettings.load()
+        ServerProfile.objects.create(
+            user=user_obj, server=server_key, protocol=protocol,
+            vpn_email=email, vpn_uuid=result['uuid'],
+            vpn_inbound_id=(settings.SERVER_1_INBOUND_ID if server_key == 'server1' else settings.SERVER_2_INBOUND_ID),
+            vpn_sub_id=result['sub_id'],
+            subscription_expiry=timezone.now() + timedelta(days=admin_cfg.default_days),
+            total_gb=admin_cfg.default_traffic_gb,
+        )
+        return JsonResponse({'success': True, 'msg': 'Подписка создана'})
+
+    # Для действий ниже нужна подписка
+    profile = ServerProfile.objects.filter(id=sub_id).first()
+    if not profile:
+        return JsonResponse({'success': False, 'msg': 'Подписка не найдена'})
+
+    # --- 3. Продление / Сокращение ---
+    if action == 'extend':
+        days = int(data.get('days', 0))
+        try:
+            if profile.is_active():
+                new_expiry = profile.subscription_expiry + timedelta(days=days)
+            else:
+                new_expiry = timezone.now() + timedelta(days=days)
+
+            # Если сокращаем в минус, ставим текущую дату (подписка истекает)
+            if new_expiry < timezone.now():
+                new_expiry = timezone.now() - timedelta(minutes=1)
+
+            client = get_client_for_server(profile.server)
+            client.update_client(
+                email=profile.vpn_email, uuid=str(profile.vpn_uuid),
+                sub_id=profile.vpn_sub_id, expiry_time=new_expiry,
+                enable=(new_expiry > timezone.now()), total_gb=profile.total_gb
+            )
+
+            profile.subscription_expiry = new_expiry
+            profile.save()
+            return JsonResponse({'success': True, 'msg': f'Срок изменён на {days} дн.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'msg': f'Ошибка API: {e}'})
+
+    # --- 4. Удаление ---
+    if action == 'delete_sub':
+        try:
+            client = get_client_for_server(profile.server)
+            client.delete_client(profile.vpn_email)
+            profile.delete()
+            return JsonResponse({'success': True, 'msg': 'Подписка удалена'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'msg': f'Ошибка API: {e}'})
+
+    return JsonResponse({'success': False, 'msg': 'Неизвестное действие'})

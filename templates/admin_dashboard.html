@@ -1,24 +1,339 @@
 {% extends 'base.html' %}
-{% block title %}Админка{% endblock %}
+{% block title %}Админ-панель{% endblock %}
 {% block content %}
-<h2 style="color: var(--heading); margin-bottom: 1rem;">Админ-панель</h2>
+<style>
+    /* Стили взяты из демо */
+    .traffic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+    @media (max-width: 800px) { .traffic-grid { grid-template-columns: 1fr; } }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .chart-title { color: var(--heading); font-weight: 600; }
+    .chart-speed { font-size: 0.8rem; color: var(--muted); font-family: monospace; }
+    .chart-container { position: relative; height: 220px; }
 
-<div class="card">
-    <p>Всего пользователей: <strong>{{ total_users }}</strong></p>
-    <p>Всего профилей: <strong>{{ total_profiles }}</strong></p>
-    <p>Активных подписок: <strong>{{ active_profiles }}</strong></p>
-</div>
+    .users-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 800px) { .users-grid { grid-template-columns: 1fr; } }
 
-<h3 style="margin-bottom: 1rem;">Пользователи</h3>
-{% for u in users %}
-<div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-            <strong>{{ u.username }}</strong> — {{ u.email }}<br>
-            <small style="color: var(--muted);">{{ u.profiles.count }} профилей</small>
+    .user-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.7rem 0.9rem; border-radius: 8px; cursor: pointer; transition: 0.15s; border: 1px solid transparent; }
+    .user-row:hover { background: rgba(88,166,255,0.08); border-color: rgba(88,166,255,0.3); }
+    .user-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .dot.online { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .dot.offline { background: var(--muted); }
+    .user-row .name { font-weight: 500; color: var(--heading); flex: 1; }
+    .user-row .email { font-size: 0.8rem; color: var(--muted); }
+    .user-row .subs-count { font-size: 0.75rem; color: var(--muted); background: var(--bg); padding: 0.15rem 0.5rem; border-radius: 4px; }
+
+    /* Модалка */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: flex-start; padding: 3rem 1rem; overflow-y: auto; z-index: 1000; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; max-width: 640px; width: 100%; padding: 2rem; animation: slideIn 0.2s ease; }
+    @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    .modal-title { color: var(--heading); font-size: 1.25rem; font-weight: 600; }
+    .modal-subtitle { font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem; }
+    .modal-close { background: none; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; line-height: 1; padding: 0 0.3rem; }
+
+    .sub-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem; margin-bottom: 0.75rem; }
+    .sub-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .sub-title { font-weight: 600; color: var(--heading); font-size: 0.95rem; }
+    .sub-meta { font-size: 0.8rem; color: var(--muted); }
+    .sub-controls { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
+
+    .section-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 1.2rem 0 0.6rem; font-weight: 600; }
+    .form-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .form-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.55rem 0.8rem; color: var(--text); font-size: 0.9rem; flex: 1; min-width: 150px; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge.active { background: rgba(63,185,80,0.15); color: var(--success); }
+    .badge.expired { background: rgba(248,81,73,0.15); color: var(--danger); }
+
+    /* Тосты */
+    .toast-container { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.5rem; max-width: 340px; }
+    .toast { display: flex; align-items: flex-start; gap: 0.7rem; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 8px; padding: 0.85rem 1rem; box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: toastIn 0.25s ease; font-size: 0.9rem; }
+    .toast.success { border-left-color: var(--success); }
+    .toast.error { border-left-color: var(--danger); }
+    .toast.hide { animation: toastOut 0.25s ease forwards; }
+    .toast-title { color: var(--heading); font-weight: 600; font-size: 0.85rem; }
+    .toast-text { color: var(--muted); font-size: 0.8rem; margin-top: 0.15rem; }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastOut { to { transform: translateX(100%); opacity: 0; } }
+
+    .btn.loading { pointer-events: none; opacity: 0.7; }
+</style>
+
+<h2 style="color: var(--heading); margin-bottom: 1.5rem;">🛠 Админ-панель</h2>
+
+<div class="traffic-grid">
+    <div class="card">
+        <div class="chart-header">
+            <div class="chart-title">Сервер 1 — Трафик</div>
+            <div class="chart-speed" id="speed-1">↑ 0 МБ/с · ↓ 0 МБ/с</div>
         </div>
-        <a href="{% url 'manage_user' u.id %}" class="btn btn-outline">Управление</a>
+        <div class="chart-container"><canvas id="chart1"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="chart-header">
+            <div class="chart-title">Сервер 2 — Трафик</div>
+            <div class="chart-speed" id="speed-2">↑ 0 МБ/с · ↓ 0 МБ/с</div>
+        </div>
+        <div class="chart-container"><canvas id="chart2"></canvas></div>
     </div>
 </div>
-{% endfor %}
+
+<div class="users-grid">
+    <div class="card">
+        <h3 style="color: var(--heading); margin-bottom: 1rem;">🟢 Онлайн (<span id="online-count">0</span>)</h3>
+        <div id="online-users"></div>
+    </div>
+    <div class="card">
+        <h3 style="color: var(--heading); margin-bottom: 1rem;">⚫ Оффлайн (<span id="offline-count">0</span>)</h3>
+        <div id="offline-users"></div>
+    </div>
+</div>
+
+<!-- Модалка -->
+<div class="modal-overlay" id="modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modal-username"></div>
+                <div class="modal-subtitle" id="modal-email"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+
+        <div class="section-label">Подписки</div>
+        <div id="modal-subs"></div>
+
+        <div class="section-label">Создать новую подписку</div>
+        <div class="form-row">
+            <select class="form-input" id="new-server">
+                <option value="server1">Сервер 1</option>
+                <option value="server2">Сервер 2</option>
+            </select>
+            <select class="form-input" id="new-protocol">
+                <option value="vless">VLESS</option>
+                <option value="hysteria">Hysteria2</option>
+            </select>
+            <button class="btn" onclick="createSub(this)">Создать</button>
+        </div>
+
+        <div class="section-label">Сменить пароль</div>
+        <div class="form-row">
+            <input type="password" class="form-input" id="new-password" placeholder="Новый пароль">
+            <button class="btn" onclick="changePassword(this)">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// CSRF-токен для POST запросов
+const CSRF_TOKEN = '{{ csrf_token }}';
+let usersList = []; // Глобальный массив пользователей
+let currentUserId = null;
+
+// --- Графики ---
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+function makeGrad(ctx, a, b) { const g = ctx.createLinearGradient(0, 0, 0, 220); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
+const chartOptions = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { intersect: false, mode: 'index' },
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 15 } } },
+    scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 6 } }, y: { beginAtZero: true, grid: { color: '#30363d' }, ticks: { callback: v => v.toFixed(2) + ' МБ/с' } } }
+};
+
+const ctx1 = document.getElementById('chart1').getContext('2d');
+const chart1 = new Chart(ctx1, { type: 'line', data: { labels: [], datasets: [
+    { label: 'Upload', data: [], borderColor: '#58a6ff', backgroundColor: makeGrad(ctx1, 'rgba(88,166,255,0.3)', 'rgba(88,166,255,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+    { label: 'Download', data: [], borderColor: '#3fb950', backgroundColor: makeGrad(ctx1, 'rgba(63,185,80,0.3)', 'rgba(63,185,80,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+]}, options: chartOptions });
+
+const ctx2 = document.getElementById('chart2').getContext('2d');
+const chart2 = new Chart(ctx2, { type: 'line', data: { labels: [], datasets: [
+    { label: 'Upload', data: [], borderColor: '#58a6ff', backgroundColor: makeGrad(ctx2, 'rgba(88,166,255,0.3)', 'rgba(88,166,255,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+    { label: 'Download', data: [], borderColor: '#3fb950', backgroundColor: makeGrad(ctx2, 'rgba(63,185,80,0.3)', 'rgba(63,185,80,0)'), fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+]}, options: chartOptions });
+
+let lastNet = { server1: {up:0, down:0}, server2: {up:0, down:0} };
+
+async function fetchTraffic() {
+    try {
+        const resp = await fetch('/accounts/api/admin/traffic/');
+        const data = await resp.json();
+        const time = new Date().toLocaleTimeString('ru-RU', {hour12:false});
+
+        ['server1', 'server2'].forEach(key => {
+            if (data[key] && data[key].online) {
+                let upSpeed = 0, downSpeed = 0;
+                // Считаем скорость (байты в секунду -> МБ/с)
+                if (lastNet[key].up > 0) {
+                    upSpeed = Math.max(0, (data[key].up - lastNet[key].up) / 1024 / 1024 / 10);
+                    downSpeed = Math.max(0, (data[key].down - lastNet[key].down) / 1024 / 1024 / 10);
+                }
+                lastNet[key] = { up: data[key].up, down: data[key].down };
+
+                const chart = key === 'server1' ? chart1 : chart2;
+                chart.data.labels.push(time);
+                chart.data.datasets[0].data.push(upSpeed);
+                chart.data.datasets[1].data.push(downSpeed);
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift();
+                    chart.data.datasets.forEach(d => d.data.shift());
+                }
+                chart.update('none');
+
+                document.getElementById(`speed-${key.slice(-1)}`).textContent = `↑ ${upSpeed.toFixed(2)} МБ/с · ↓ ${downSpeed.toFixed(2)} МБ/с`;
+            }
+        });
+    } catch (e) { console.error("Ошибка трафика", e); }
+}
+setInterval(fetchTraffic, 10000);
+fetchTraffic();
+
+// --- Пользователи ---
+async function fetchUsers() {
+    try {
+        const resp = await fetch('/accounts/api/admin/users/');
+        const data = await resp.json();
+        usersList = data.users;
+        renderUsers();
+    } catch (e) { console.error("Ошибка юзеров", e); }
+}
+
+function renderUsers() {
+    const online = usersList.filter(u => u.online);
+    const offline = usersList.filter(u => !u.online);
+    document.getElementById('online-count').textContent = online.length;
+    document.getElementById('offline-count').textContent = offline.length;
+
+    const makeRow = (u) => `
+        <div class="user-row" onclick="openModal(${u.id})">
+            <div class="dot ${u.online ? 'online' : 'offline'}"></div>
+            <div style="flex:1;">
+                <div class="name">${u.username}</div>
+                <div class="email">${u.email}</div>
+            </div>
+            <div class="subs-count">${u.subs.length} подп.</div>
+        </div>`;
+
+    document.getElementById('online-users').innerHTML = online.length ? online.map(makeRow).join('') : '<p style="color:var(--muted);font-size:0.85rem;">Нет</p>';
+    document.getElementById('offline-users').innerHTML = offline.length ? offline.map(makeRow).join('') : '<p style="color:var(--muted);font-size:0.85rem;">Нет</p>';
+}
+
+// --- Модалка ---
+function openModal(userId) {
+    currentUserId = userId;
+    const u = usersList.find(x => x.id === userId);
+    if (!u) return;
+    document.getElementById('modal-username').textContent = u.username;
+    document.getElementById('modal-email').textContent = u.email;
+    renderSubs();
+    document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+    currentUserId = null;
+}
+
+function renderSubs() {
+    const u = usersList.find(x => x.id === currentUserId);
+    const c = document.getElementById('modal-subs');
+    if (!u || !u.subs.length) {
+        c.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Подписок нет</p>';
+        return;
+    }
+    c.innerHTML = u.subs.map(s => `
+        <div class="sub-card">
+            <div class="sub-header">
+                <div>
+                    <div class="sub-title">${s.server} · ${s.protocol}</div>
+                    <div class="sub-meta">${s.active ? `Осталось <strong>${s.days_left}</strong> дн.` : 'Истекла'}</div>
+                </div>
+                <span class="badge ${s.active ? 'active' : 'expired'}">${s.active ? 'Активна' : 'Истекла'}</span>
+            </div>
+            <div class="sub-controls">
+                <button class="btn btn-success btn-sm" onclick="sendAction(this, 'extend', ${s.id}, {days: 30})">+30 дней</button>
+                <button class="btn btn-outline btn-sm" onclick="sendAction(this, 'extend', ${s.id}, {days: 1})">+1 день</button>
+                <button class="btn btn-outline btn-sm" onclick="sendAction(this, 'extend', ${s.id}, {days: -1})">−1 день</button>
+                <button class="btn btn-danger btn-sm" onclick="sendAction(this, 'delete_sub', ${s.id}, {}, true)">Удалить</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// --- API Действия ---
+async function sendAction(btn, action, sub_id, extraData = {}, confirmFirst = false) {
+    if (confirmFirst && !confirm('Вы уверены?')) return;
+
+    btn.classList.add('loading');
+    try {
+        const payload = { action, user_id: currentUserId, sub_id, ...extraData };
+        const resp = await fetch('/accounts/api/admin/action/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+
+        if (data.success) {
+            showToast('Успешно', data.msg, 'success');
+            await fetchUsers(); // Обновляем список
+            renderSubs();       // Обновляем модалку
+        } else {
+            showToast('Ошибка', data.msg, 'error');
+        }
+    } catch (e) {
+        showToast('Ошибка', 'Сетевая ошибка', 'error');
+    } finally {
+        btn.classList.remove('loading');
+    }
+}
+
+async function createSub(btn) {
+    const server = document.getElementById('new-server').value;
+    const protocol = document.getElementById('new-protocol').value;
+    await sendAction(btn, 'create_sub', null, { server, protocol });
+}
+
+async function changePassword(btn) {
+    const pass = document.getElementById('new-password').value;
+    if (pass.length < 6) { showToast('Ошибка', 'Пароль слишком короткий', 'error'); return; }
+
+    btn.classList.add('loading');
+    const payload = { action: 'change_password', user_id: currentUserId, password: pass };
+    const resp = await fetch('/accounts/api/admin/action/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    btn.classList.remove('loading');
+
+    if (data.success) {
+        document.getElementById('new-password').value = '';
+        showToast('Успешно', data.msg, 'success');
+    } else {
+        showToast('Ошибка', data.msg, 'error');
+    }
+}
+
+// --- Тосты ---
+function showToast(title, text, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const icon = type === 'success' ? '✅' : '❌';
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span>${icon}</span><div><div class="toast-title">${title}</div><div class="toast-text">${text}</div></div>`;
+    container.appendChild(el);
+    setTimeout(() => { el.classList.add('hide'); setTimeout(() => el.remove(), 250); }, 3000);
+}
+
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+fetchUsers();
+setInterval(fetchUsers, 15000); // Автообновление списка юзеров раз в 15 сек
+</script>
 {% endblock %}

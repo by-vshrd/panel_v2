@@ -69,7 +69,6 @@
                 <a href="{% url 'dashboard' %}">Кабинет</a>
                 {% if user.is_staff %}
                     <a href="{% url 'admin_dashboard' %}">Админка</a>
-                    <a href="{% url 'admin_statistics' %}">Статистика</a>
                     <a href="{% url 'admin_settings' %}">Настройки</a>
                 {% endif %}
                 <a href="{% url 'logout' %}">Выйти</a>
