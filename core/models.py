@@ -11,12 +11,12 @@ class ServerProfile(models.Model):
     ]
     PROTOCOL_CHOICES = [
         ('vless', 'VLESS'),
-        ('hysteria', 'Hysteria2'),
+        ('amneziawg', 'AmneziaWG'),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='profiles')
     server = models.CharField(max_length=10, choices=SERVER_CHOICES)
-    protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES)
+    protocol = models.CharField(max_length=15, choices=PROTOCOL_CHOICES)
     vpn_email = models.EmailField(unique=True)
     vpn_uuid = models.UUIDField(default=uuid.uuid4, editable=False)
     vpn_inbound_id = models.IntegerField()
@@ -26,7 +26,8 @@ class ServerProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'server', 'protocol')
+        # Убрано unique_together, чтобы разрешить создание 2 подписок
+        ordering = ['created_at']
 
     def is_active(self):
         if self.subscription_expiry is None:
@@ -57,7 +58,6 @@ class AdminSettings(models.Model):
 
 class ServerMetric(models.Model):
     SERVER_CHOICES = [('server1', 'Сервер 1'), ('server2', 'Сервер 2')]
-
     server = models.CharField(max_length=10, choices=SERVER_CHOICES)
     timestamp = models.DateTimeField(auto_now_add=True)
     cpu = models.FloatField(default=0)

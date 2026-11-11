@@ -14,22 +14,13 @@ urlpatterns = [
     path('qr/<int:profile_id>/', views.qr_code, name='qr_code'),
     path('link/<int:profile_id>/', views.subscription_link, name='subscription_link'),
     path('server-status/', views.server_status, name='server_status'),
-
-    # Админ
-    path('admin-panel/', views.admin_dashboard, name='admin_dashboard'),
-    path('admin-panel/user/<int:user_id>/', views.manage_user, name='manage_user'),
-    path('admin-panel/user/<int:user_id>/extend/', views.manual_extend, name='manual_extend'),
-    path('admin-panel/settings/', views.admin_settings, name='admin_settings'),
-    path('admin-panel/statistics/', views.admin_statistics, name='admin_statistics'),
-    path('admin-panel/statistics/', views.admin_statistics, name='admin_statistics'),
-    path('api/stats/', views.api_get_stats, name='api_get_stats'),
     path('api/ping/', views.api_ping_servers, name='api_ping_servers'),
 
     # Админка
     path('admin-panel/', views.admin_dashboard, name='admin_dashboard'),
     path('admin-panel/settings/', views.admin_settings, name='admin_settings'),
 
-    # API для админки
+    # API для админки (единая панель)
     path('api/admin/traffic/', views.api_admin_traffic, name='api_admin_traffic'),
     path('api/admin/users/', views.api_admin_users, name='api_admin_users'),
     path('api/admin/action/', views.api_admin_action, name='api_admin_action'),
