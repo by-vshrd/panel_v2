@@ -93,7 +93,6 @@ SERVER_1_API_URL = os.environ.get('SERVER_1_API_URL', 'https://127.0.0.1:54321')
 SERVER_1_USERNAME = os.environ.get('SERVER_1_USERNAME', 'admin')
 SERVER_1_PASSWORD = os.environ.get('SERVER_1_PASSWORD', 'admin')
 SERVER_1_DOMAIN = os.environ.get('SERVER_1_DOMAIN', '127.0.0.1')
-# ID инбаундов для Сервера 1
 SERVER_1_INBOUND_ID_VLESS = int(os.environ.get('SERVER_1_INBOUND_ID_VLESS', '1'))
 SERVER_1_INBOUND_ID_AWG = int(os.environ.get('SERVER_1_INBOUND_ID_AWG', '7'))
 
@@ -102,7 +101,6 @@ SERVER_2_API_URL = os.environ.get('SERVER_2_API_URL', 'https://127.0.0.1:54322')
 SERVER_2_USERNAME = os.environ.get('SERVER_2_USERNAME', 'admin')
 SERVER_2_PASSWORD = os.environ.get('SERVER_2_PASSWORD', 'admin')
 SERVER_2_DOMAIN = os.environ.get('SERVER_2_DOMAIN', '127.0.0.1')
-# ID инбаундов для Сервера 2
 SERVER_2_INBOUND_ID_VLESS = int(os.environ.get('SERVER_2_INBOUND_ID_VLESS', '1'))
 SERVER_2_INBOUND_ID_AWG = int(os.environ.get('SERVER_2_INBOUND_ID_AWG', '2'))
 

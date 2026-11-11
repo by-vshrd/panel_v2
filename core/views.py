@@ -72,13 +72,11 @@ def create_profile(request):
         messages.error(request, 'Неверные параметры.')
         return redirect('dashboard')
 
-    # Лимит: не более 2 подписок на каждый протокол на каждом сервере
     existing_count = ServerProfile.objects.filter(user=request.user, server=server_key, protocol=protocol).count()
     if existing_count >= 2:
-        messages.error(request, f'Достигнут лимит подписок для {protocol} на этом сервере (максимум 2).')
+        messages.error(request, f'Достигнут лимит подписок для {protocol} (максимум 2).')
         return redirect('dashboard')
 
-    # Выбор ID инбаунда
     if protocol == 'vless':
         inbound_id = settings.SERVER_1_INBOUND_ID_VLESS if server_key == 'server1' else settings.SERVER_2_INBOUND_ID_VLESS
     else:
@@ -89,19 +87,15 @@ def create_profile(request):
 
     try:
         client = get_client_for_server(server_key)
-        result = client.add_client(email, vpn_uuid)
+        result = client.add_client(email, vpn_uuid, inbound_id)
     except Exception as e:
         messages.error(request, f'Ошибка при создании на сервере: {e}')
         return redirect('dashboard')
 
     admin_cfg = AdminSettings.load()
     ServerProfile.objects.create(
-        user=request.user,
-        server=server_key,
-        protocol=protocol,
-        vpn_email=email,
-        vpn_uuid=result['uuid'],
-        vpn_inbound_id=inbound_id,
+        user=request.user, server=server_key, protocol=protocol,
+        vpn_email=email, vpn_uuid=result['uuid'], vpn_inbound_id=inbound_id,
         vpn_sub_id=result['sub_id'],
         subscription_expiry=timezone.now() + timedelta(days=admin_cfg.default_days),
         total_gb=admin_cfg.default_traffic_gb,
@@ -115,7 +109,6 @@ def qr_code(request, profile_id):
     profile = get_object_or_404(ServerProfile, pk=profile_id, user=request.user)
     if not profile.is_active():
         return HttpResponse('Подписка истекла', status=403)
-
     if profile.protocol == 'amneziawg':
         return HttpResponse('QR-код недоступен для AmneziaWG. Используйте ссылку vpn://', status=400)
 
@@ -168,11 +161,8 @@ def api_admin_traffic(request):
             client = get_client_for_server(key)
             stats = client.get_server_status()
             if stats:
-                res[key] = {
-                    'online': True,
-                    'up': int(stats.get('netIO', {}).get('up', 0)),
-                    'down': int(stats.get('netIO', {}).get('down', 0)),
-                }
+                res[key] = {'online': True, 'up': int(stats.get('netIO', {}).get('up', 0)),
+                            'down': int(stats.get('netIO', {}).get('down', 0))}
             else:
                 res[key] = {'online': False}
         except Exception:
@@ -200,21 +190,12 @@ def api_admin_users(request):
             if p.vpn_email in online_emails:
                 is_online = True
             subs.append({
-                'id': p.id,
-                'server': p.get_server_display(),
-                'server_key': p.server,
-                'protocol': p.get_protocol_display(),
-                'protocol_key': p.protocol,
-                'days_left': p.days_left(),
-                'active': p.is_active(),
+                'id': p.id, 'server': p.get_server_display(), 'server_key': p.server,
+                'protocol': p.get_protocol_display(), 'protocol_key': p.protocol,
+                'days_left': p.days_left(), 'active': p.is_active(),
             })
-        users_data.append({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'online': is_online,
-            'subs': subs
-        })
+        users_data.append(
+            {'id': user.id, 'username': user.username, 'email': user.email, 'online': is_online, 'subs': subs})
     return JsonResponse({'users': users_data})
 
 
@@ -262,7 +243,7 @@ def api_admin_action(request):
 
         try:
             client = get_client_for_server(server_key)
-            result = client.add_client(email, vpn_uuid)
+            result = client.add_client(email, vpn_uuid, inbound_id)
         except Exception as e:
             return JsonResponse({'success': False, 'msg': f'Ошибка API: {e}'})
 

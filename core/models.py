@@ -26,7 +26,6 @@ class ServerProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # Убрано unique_together, чтобы разрешить создание 2 подписок
         ordering = ['created_at']
 
     def is_active(self):
